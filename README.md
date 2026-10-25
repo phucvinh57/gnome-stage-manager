@@ -2,27 +2,18 @@
 
 An experimental, personal-use GNOME Shell extension that focuses on one window at a time and shows other windows in a preview strip. Extension UUID: `stage-manager@phucvinh57`.
 
-**Status:** experimental implementation for the GNOME Shell versions shipped with Ubuntu 24.04 through 26.10 on Wayland. Lint, unit tests, and strict schema validation pass. The isolated GNOME 51 Shell integration test passes (64 assertions, Wayland windows). GNOME 46–50 and interactive desktop behavior still need runtime validation; declaring those versions in `metadata.json` does not prove them. XWayland validation is also pending. The tested environment is Ubuntu 26.10, GNOME Shell 51.0, Wayland, with a primary display of 3840×2400 at scale 2. See [the manual checklist](tests/MANUAL.md).
-
-| Ubuntu | GNOME Shell | Validation here |
-| --- | --- | --- |
-| 24.04 LTS | 46 | Compatibility code and unit tests; runtime pending |
-| 24.10 | 47 | Compatibility code and unit tests; runtime pending |
-| 25.04 | 48 | Compatibility code and unit tests; runtime pending |
-| 25.10 | 49 | Compatibility code and unit tests; runtime pending |
-| 26.04 LTS | 50 | Compatibility code and unit tests; runtime pending |
-| 26.10 | 51 | Isolated Wayland Shell test passed; interactive checks pending |
+**Status:** experimental implementation for GNOME Shell 46–51 on Wayland. Declaring versions in `metadata.json` does not guarantee runtime compatibility. GNOME 46–50, XWayland, and interactive desktop behavior still need runtime validation. The development environment is Ubuntu 26.10, GNOME Shell 51.0, Wayland, with a primary display of 3840×2400 at scale 2.
 
 Future Ubuntu/GNOME releases need review before being added to `shell-version`.
 
 ## Behavior and scope
 
-- Manages eligible normal windows on the **primary monitor and current workspace only**. Other monitors are not stage-managed.
+- Arranges eligible normal windows on the **primary monitor and current workspace**, retaining managed state on other workspaces. Other monitors are not stage-managed.
 - Each top-level window is one stage; transient dialogs follow their parent rather than becoming separate stages. There are no persistent groups or multiwindow stage groups.
-- Switching stages minimizes other eligible windows and restores the selected window family. Eligible top-level windows share one frame in the primary monitor's usable area. Their original frames and maximize states are restored when management stops or they leave its workspace.
+- Switching stages minimizes other eligible windows and restores the selected window family. Eligible top-level windows share one frame in the primary monitor's usable area. Workspace switches preserve those frames, inactive-stage minimizations, and workspace-local selection, avoiding a restore-and-resize cycle on return. Original frames and maximize states are not saved; stopping management leaves windows at their current geometry.
 - The strip defaults to the **right** edge and excludes the active stage. It remains an overlay without a Shell strut, while the extension reserves its space in managed window frames even when only one stage exists. Preferences can move it to the left and adjust window padding and the strip gap.
 - Clicking a card activates its window. Next/previous shortcuts cycle in stable window-discovery order, not MRU order. Cycling while Stage Manager is off turns it on.
-- The strip hides in fullscreen. Overview and lock/greeter modes suspend stage management and restore extension-owned minimizations; management resumes afterward when enabled.
+- The strip hides in fullscreen. Overview pauses stage management and hides the strip while preserving managed geometry and minimizations; its native window picker still includes minimized windows. Selection and visibility are reconciled as Overview starts closing, and the strip returns after it closes. Lock/greeter modes suspend management and restore extension-owned minimizations; management resumes afterward when enabled.
 - User drags and resizes are returned to the shared frame after the drag ends. The strip hides while a resize is pending or when an application's size constraints prevent it from fitting. Windows moved to another monitor keep the user's placement there.
 - Sticky, always-on-top, skip-taskbar, override-redirect, and non-minimizable windows are excluded from top-level stages.
 - Inactive windows appear as frameless, slightly left-tilted previews with a small application badge, rather than rectangular cards or a solid strip background. Each preview follows its window's aspect ratio (very tall windows are fit within a bounded height); titles remain available to accessibility tools.
@@ -30,7 +21,7 @@ Future Ubuntu/GNOME releases need review before being added to `shell-version`.
 
 ## Requirements and development commands
 
-Use GNOME Shell 46–51 with its `gnome-extensions` CLI, Node.js/npm, and GLib's `glib-compile-schemas`. The isolated Shell test additionally requires `gnome-shell-test-tool`, `dbus-run-session`, and GNU `timeout`. Preferences use GTK 4 and libadwaita in a separate process.
+Use GNOME Shell 46–51 with its `gnome-extensions` CLI, Node.js/npm, and GLib's `glib-compile-schemas`. Preferences use GTK 4 and libadwaita in a separate process.
 
 From the project root:
 
@@ -38,61 +29,10 @@ From the project root:
 npm install
 npm run check
 npm run pack
-npm run test:shell
 ```
 
-- `npm run check`: ESLint, Node unit tests (`tests/*.test.js`), and a strict schema dry-run. This does not validate GNOME Shell behavior.
+- `npm run check`: ESLint and a strict schema dry-run. This does not validate GNOME Shell behavior.
 - `npm run pack`: validates schemas and uses `gnome-extensions pack` to create `dist/stage-manager@phucvinh57.shell-extension.zip`, including `src/` and this README along with standard extension files. It **does not publish, install, or enable** the extension. `package.json` is also marked `private: true`.
-- `npm run test:shell`: first packs, then runs `tests/shellIntegration.js` through `gnome-shell-test-tool` in a headless, animation-disabled Shell. The test tool supplies temporary XDG homes; the script uses an isolated `dbus-run-session` and unsets `DISPLAY`/`WAYLAND_DISPLAY`, keeping it separate from the live desktop. It has a 120-second timeout, saves output to `dist/shell-test.log`, requires `STAGE_MANAGER_INTEGRATION_PASS`, and rejects selected Shell JavaScript error patterns. The integration entry point creates disposable test windows and asserts controller state directly; it does not drive physical keyboard input or exercise live desktop extensions.
-
-The Node tests cover the pure model, minimization ledger, and geometry calculation, not compositor behavior. See the status above and `tests/MANUAL.md` for validation limits. Do not use a test run to restart or kill the live desktop Shell.
-
-### Testing without logging out
-
-Run a disposable GNOME desktop from a terminal in your graphical session:
-
-```sh
-npm run test:interactive
-```
-
-On GNOME 49–51, install Ubuntu's `mutter-dev-bin` package first:
-
-```sh
-sudo apt install mutter-dev-bin
-```
-
-This packages the latest code, compiles its schema in a temporary directory,
-and starts the installed GNOME Shell with `--nested --wayland` on versions
-46–48 or `--devkit` on versions 49–51, a separate Wayland socket
-(`stage-manager-test`), private D-Bus, and temporary settings and extension
-files. It does not change your normal desktop. On GNOME 49–51, install the
-`mutter-dev-bin` package first; this machine does not currently have it, so
-interactive startup remains unverified here.
-
-1. Turn on Stage Manager using the panel switch **inside the test desktop**.
-2. Launch a fresh Wayland application from another terminal, for example:
-   ```sh
-   npm run test:app -- gtk4-demo
-   ```
-   Install `gtk4-demo` separately if needed, or substitute another Wayland app.
-3. After edits, close the test desktop and rerun `npm run test:interactive`.
-   Test settings are discarded when it exits. No logout required.
-
-The launchers are `tests/interactive.sh` and `tests/app.sh`. Both accept `--help`.
-Set `STAGE_MANAGER_TEST_DISPLAY` on both commands to use a different socket name.
-Use fresh application processes: single-instance apps may contact an existing
-process on your main desktop. The app launcher selects the test display, but does
-not join its private D-Bus session. These tests do not reload your main desktop's
-extension or validate coexistence with its other extensions.
-
-For automated, nonvisual testing, use `npm run test:shell` instead.
-
-### Validation coverage
-
-The isolated test covers stage activation/cycling, preexisting and explicit user minimization, delayed external restores, actual preview-card activation, workspace moves/switches, stale cards, Overview, fullscreen, sticky/always-on-top exclusions, active-window closure, native snapshot/icon fallback, a real GTK transient family and a fixed-size window, disable/re-enable restoration, preferences launch, shared window frames, manual resize/maximize, live geometry preferences, new-window arrangement, and frame/maximize restoration. It uses Wayland clients. The modal test dialog cannot be independently minimized on this Mutter version, so that subcase is skipped.
-
-Physical shortcuts, XWayland, live Ubuntu Dock/Tiling Assistant interaction, lock/unlock, monitor hotplug/multimonitor behavior, fractional scaling, and visual/accessibility review still require manual validation. The headless session may emit systemd/accessibility/portal service warnings; JavaScript errors fail the test.
-
 ## Local installation and first use
 
 Packaging alone changes nothing in your running session. To install the built archive for your user:
@@ -101,7 +41,7 @@ Packaging alone changes nothing in your running session. To install the built ar
 gnome-extensions install --force dist/stage-manager@phucvinh57.shell-extension.zip
 ```
 
-For installation into your **normal desktop session**, **log out and log back in**, then explicitly enable the extension. For development without logging out, use the separate-instance workflow under [Testing without logging out](#testing-without-logging-out) instead; disabling/re-enabling does not reliably reload updated JavaScript in the running Wayland Shell.
+For installation into your **normal desktop session**, **log out and log back in**, then explicitly enable the extension. Disabling/re-enabling does not reliably reload updated JavaScript in the running Wayland Shell.
 
 Enable after logging back in:
 
@@ -133,15 +73,15 @@ Schema: `org.gnome.shell.extensions.stage-manager`, path `/org/gnome/shell/exten
 | `next-shortcut` | `['<Super><Shift>bracketright']` | Next eligible window |
 | `previous-shortcut` | `['<Super><Shift>bracketleft']` | Previous eligible window |
 
-Shortcuts operate in normal Shell mode. Preferences accept one GTK accelerator per action; press Enter or Apply to save. Invalid entries are marked red and are not saved. Clearing a field saves an empty array and disables that shortcut. Layout-specific key availability and conflicts with other bindings need testing.
+Shortcuts operate in normal Shell mode. Preferences accept one GTK accelerator per action; press Enter or Apply to save. Invalid entries are marked red and are not saved. Clearing a field saves an empty array and disables that shortcut. Layout-specific key availability and conflicts with other bindings need validation.
 
 The strip is registered with Ctrl+Alt+Tab navigation; use standard Tab/arrows and Space/Enter for cards. New-card fades honor Shell animation/reduced-motion settings.
 
 ## Safety and recovery
 
-The in-memory minimization ledger owns only minimizations performed by the extension. Turning Stage Manager off, or normally disabling the extension, restores owned windows and their saved geometry and maximize state while **preserving windows already minimized by the user**. Explicitly selecting a minimized card can restore that window. Independently user-minimized dialogs are intended to remain minimized.
+The in-memory minimization ledger owns only minimizations performed by the extension, including windows on inactive workspaces. Turning Stage Manager off, or normally disabling the extension, restores owned minimizations while **preserving windows already minimized by the user**. Windows keep their current geometry and maximize state; no pre-extension layout is restored. Explicitly selecting a minimized card can restore that window. Independently user-minimized dialogs are intended to remain minimized.
 
-An external restore of an extension-minimized window is treated as stage-selection intent, even if focus arrives after the restore notification. Overview suspends management instead. Mutter/application transitions can still be ambiguous, especially with dialog coupling or competing extensions; validate native Alt+Tab and Ubuntu Dock paths before relying on them for work.
+An external restore of an extension-minimized window is treated as stage-selection intent, even if focus arrives after the restore notification. During Overview, that intent is retained until management resumes. Mutter/application transitions can still be ambiguous, especially with dialog coupling or competing extensions; validate native Alt+Tab and Ubuntu Dock paths before relying on them for work.
 
 To stop the extension in a usable desktop terminal:
 
@@ -184,10 +124,7 @@ A Shell crash loses the in-memory ownership ledger. After recovery, windows left
 | `prefs.js` | Separate GTK 4/libadwaita preferences process; no GTK in Shell UI modules |
 | `schemas/org.gnome.shell.extensions.stage-manager.gschema.xml` | Settings defaults, ranges, shortcuts |
 | `stylesheet.css`, `metadata.json` | Shell styling and GNOME 46–51 extension metadata |
-| `scripts/package.sh`, `scripts/test-shell.sh` | Local archive packaging and isolated Shell testing |
-| `tests/*.test.js` | Pure Node unit tests, including maximize API compatibility; no compositor validation |
-| `tests/interactive.sh`, `tests/app.sh` | Disposable interactive desktop and Wayland app launchers |
-| `tests/MANUAL.md` | Pending desktop regression and recovery checklist |
+| `scripts/package.sh` | Local archive packaging |
 
 ## Deferred work
 
