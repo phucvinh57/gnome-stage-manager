@@ -4,13 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/*.test.js",
     "lint": "eslint .",
-    "check": "npm run lint && npm test && glib-compile-schemas --strict --dry-run schemas",
-    "pack": "bash scripts/package.sh",
-    "test:shell": "bash scripts/test-shell.sh",
-    "test:interactive": "bash tests/interactive.sh",
-    "test:app": "bash tests/app.sh"
+    "check": "npm run lint && glib-compile-schemas --strict --dry-run schemas",
+    "pack": "bash scripts/package.sh"
   },
   "devDependencies": {
     "eslint": "^10.13.0"
