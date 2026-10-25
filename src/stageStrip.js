@@ -14,7 +14,9 @@ const HORIZONTAL_CHROME = 32;
 /** Shell-only view; the controller owns overview/fullscreen visibility policy.
  * update(records, activeId): ordered {id, window: Meta.Window} records; IDs are
  * opaque/stable. Active cards are retained but hidden for pre-minimize capture.
- * Surviving cards are never reparented.
+ * retain(records): global eligible window snapshot, used to prune dead cards.
+ * Updates show only current-context records; other cached cards stay hidden.
+ * Surviving cards are never reparented, including across workspace switches.
  * setVisible(bool): desired visibility, additionally gated by a primary monitor
  * and at least one inactive card. Initially hidden. Does not manipulate windows.
  */
@@ -26,12 +28,12 @@ export class StageStrip {
         this._pendingAdded = new Set();
         this._signals = [];
         this._visible = false;
-        this._inactiveCount = 0;
         this._destroyed = false;
         this._hasWorkArea = false;
         this._stSettings = St.Settings.get();
         this._themeContext = St.ThemeContext.get_for_stage(global.stage);
         this._previewWidth = 0;
+        this._layoutKey = null;
         const shellMajor = Number.parseInt(Config.PACKAGE_VERSION, 10);
         this._list = new St.BoxLayout({
             style_class: 'stage-manager-list',
@@ -116,6 +118,17 @@ export class StageStrip {
         }
     }
 
+    retain(records) {
+        const windows = new Map(records.map(record => [record.id, record.window]));
+        for (const [id, card] of this._cards) {
+            if (windows.get(id) !== card.window || !card.window) {
+                this._pendingAdded.delete(card);
+                card.destroy();
+                this._cards.delete(id);
+            }
+        }
+    }
+
     update(records, activeId, preparing = false) {
         if (this._destroyed)
             return;
@@ -127,11 +140,8 @@ export class StageStrip {
         }
         const hadFocus = [...this._cards.values()].some(card => card.actor.has_key_focus());
         for (const [id, card] of this._cards) {
-            if (!wanted.has(id) || wanted.get(id).window !== card.window) {
-                this._pendingAdded.delete(card);
-                card.destroy();
-                this._cards.delete(id);
-            }
+            if (!wanted.has(id))
+                card.actor.visible = false;
         }
         let index = 0;
         for (const [id, record] of wanted) {
@@ -157,9 +167,7 @@ export class StageStrip {
         }
         if (preparing)
             return;
-        this._inactiveCount = records.filter(record =>
-            record.id !== activeId && !record.awaitingFrame).length;
-        this._layout();
+        this._layout(false);
         const duration = this._animationDuration();
         if (duration > 0 && this.actor.mapped) {
             for (const card of this._pendingAdded) {
@@ -190,11 +198,12 @@ export class StageStrip {
         return HORIZONTAL_CHROME * this._themeContext.scale_factor;
     }
 
-    _layout() {
+    _layout(force = true) {
         if (this._destroyed)
             return;
         const monitor = Main.layoutManager.primaryMonitor;
         if (!monitor) {
+            this._layoutKey = null;
             this._hasWorkArea = false;
             this._syncVisibility();
             return;
@@ -202,6 +211,7 @@ export class StageStrip {
         const area = Main.layoutManager.getWorkAreaForMonitor(monitor.index);
         this._hasWorkArea = area.width > 0 && area.height > 0;
         if (!this._hasWorkArea) {
+            this._layoutKey = null;
             this._syncVisibility();
             return;
         }
@@ -215,9 +225,26 @@ export class StageStrip {
             for (const card of this._cards.values())
                 card.setPreviewWidth(Math.max(1, width - this._horizontalChrome()));
         }
+        // Controller refreshes often arrive in batches (map, first frame,
+        // focus, minimization). Only remeasure when visible content changes.
+        const layoutKey = JSON.stringify([
+            geometry.strip, this._horizontalChrome(),
+            [...this._cards.values()].filter(card => card.actor.visible)
+                .map(card => [card.id, card.previewHeight]),
+        ]);
+        if (!force && layoutKey === this._layoutKey) {
+            this._syncVisibility();
+            return;
+        }
+        this._layoutKey = layoutKey;
         this.actor.width = width;
         // Measure unconstrained natural height, then cap at the usable work area.
         // The list is StScrollable; excess cards scroll rather than shrink.
+        // Hidden workspace cards can already have a relayout pending, so showing
+        // them does not always invalidate their parent's cached empty request.
+        // Invalidate both containers before measuring the new visible set.
+        this._list.queue_relayout();
+        this.actor.queue_relayout();
         this.actor.height = -1;
         const [, naturalHeight] = this.actor.get_preferred_height(width);
         const height = Math.max(1, Math.min(naturalHeight, geometry.strip.height));
@@ -237,7 +264,8 @@ export class StageStrip {
     _syncVisibility() {
         // Immediate hide also immediately drops the chrome input region. The
         // controller must call setVisible(false) for overview/fullscreen/disable.
-        const visible = this._visible && this._hasWorkArea && this._inactiveCount > 0;
+        const visible = this._visible && this._hasWorkArea &&
+            [...this._cards.values()].some(card => card.actor.visible);
         if (!visible) {
             for (const card of this._cards.values()) {
                 card.actor.remove_all_transitions();

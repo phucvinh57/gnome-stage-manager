@@ -2,6 +2,7 @@
 // Do NOT upload to extensions.gnome.org (EGO) unless you understand JavaScript
 // and can maintain this code.
 import GLib from 'gi://GLib';
+import Meta from 'gi://Meta';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {StageModel} from './stageModel.js';
@@ -18,6 +19,7 @@ export class StageController {
         this._ledger = new MinimizeLedger();
         this._connections = [];
         this._refreshId = 0;
+        this._destroyed = false;
         this._lastFocus = null;
         this._pendingRestore = null;
         this._arranger = new WindowArranger(() => this._queueRefresh());
@@ -49,6 +51,7 @@ export class StageController {
         this._connect(St.ThemeContext.get_for_stage(global.stage), 'notify::scale-factor',
             () => this._queueRefresh());
         this._connect(Main.overview, 'showing', () => this._refresh());
+        this._connect(Main.overview, 'hiding', () => this._refresh());
         this._connect(Main.overview, 'hidden', () => this._queueRefresh());
         this._connect(Main.sessionMode, 'updated', () => this._refresh());
         this._tracker.start();
@@ -68,35 +71,67 @@ export class StageController {
     }
 
     get suspended() {
+        return this._stopped || (Main.overview.visible && !Main.overview.closing);
+    }
+
+    get _stopped() {
         return !this._settings.get_boolean('stage-enabled') ||
-            Main.overview.visible || Main.sessionMode.isLocked ||
+            Main.sessionMode.isLocked ||
             Main.sessionMode.isGreeter || Main.layoutManager.primaryIndex < 0;
     }
 
     _queueRefresh() {
-        if (this._refreshId)
+        if (this._destroyed || this._refreshId)
             return;
-        this._refreshId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+        this._refreshId = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
             this._refreshId = 0;
             this._refresh();
             return GLib.SOURCE_REMOVE;
         });
     }
 
+    _cancelRefresh() {
+        if (this._refreshId) {
+            global.compositor.get_laters().remove(this._refreshId);
+            this._refreshId = 0;
+        }
+    }
+
     _refresh() {
-        if (this.suspended) {
+        if (this._destroyed)
+            return;
+        this._cancelRefresh();
+        const records = this._tracker.records;
+        // Card lifetime follows the global window set, not the selected
+        // workspace. Prune even while Overview or stage mode suspends updates.
+        this._strip.retain(records);
+        if (this._stopped) {
+            this._strip.setVisible(false);
+            this._arranger.releaseAll();
             this._ledger.restoreAll();
-            this._arranger.restoreAll();
             this._lastFocus = null;
             this._pendingRestore = null;
-            this._strip.setVisible(false);
             return;
         }
 
         const workspace = global.workspace_manager.get_active_workspace_index();
         const monitor = Main.layoutManager.primaryIndex;
-        const records = this._tracker.records;
-        const inContext = records.filter(record => record.workspace === workspace && record.monitor === monitor);
+        const managed = records.filter(record => record.monitor === monitor);
+        this._arranger.retain(managed);
+        // Ownership survives workspace switches. Only windows that leave the
+        // managed monitor/eligibility set need to be restored here.
+        const members = new Set(managed.flatMap(record => this._tracker.familyFor(record.window)));
+        for (const window of this._ledger.windows) {
+            if (!members.has(window))
+                this._ledger.restore(window);
+        }
+        if (this.suspended) {
+            // Overview can show minimized windows without undoing stage state.
+            // Preserve external selection intent until Overview starts closing.
+            this._strip.setVisible(false);
+            return;
+        }
+        const inContext = managed.filter(record => record.workspace === workspace);
         const area = Main.layoutManager.getWorkAreaForMonitor(monitor);
         const geometry = area.width > 0 && area.height > 0
             ? stageGeometry(area, this._settings.get_string('strip-edge'),
@@ -104,17 +139,8 @@ export class StageController {
                 this._settings.get_int('strip-gap'))
             : null;
         this._arranger.sync(inContext.filter(record => !record.awaitingFrame), geometry?.window);
-        const members = new Set(inContext.flatMap(record => this._tracker.familyFor(record.window)));
-        for (const window of this._ledger.windows) {
-            if (!members.has(window))
-                this._ledger.restore(window);
-        }
-
         this._model.setContext(workspace, monitor);
-        this._model.setWindows(records.map(record => ({
-            ...record,
-            minimized: record.minimized && !this._ledger.has(record.window),
-        })));
+        this._setWindows(records);
         const focus = this._tracker.rootFor(global.display.focus_window);
         const focusedRecord = inContext.find(record => record.window === focus);
         // Only an actual focus change should select another stage. In particular,
@@ -131,8 +157,16 @@ export class StageController {
         this._applyVisibility();
         this._strip.update(this._model.windows, this._model.activeId);
         const active = this._model.windows.find(record => record.id === this._model.activeId);
-        this._strip.setVisible(!global.display.get_monitor_in_fullscreen(monitor) &&
+        this._strip.setVisible(!Main.overview.visible &&
+            !global.display.get_monitor_in_fullscreen(monitor) &&
             (!active || this._arranger.canShowStrip(active.window)));
+    }
+
+    _setWindows(records) {
+        this._model.setWindows(records.map(record => ({
+            ...record,
+            minimized: record.minimized && !this._ledger.has(record.window),
+        })));
     }
 
     _applyVisibility() {
@@ -170,11 +204,9 @@ export class StageController {
             candidate.workspace === workspace && candidate.monitor === monitor);
         if (!record)
             return;
+        this._strip.retain(snapshot);
         this._model.setContext(workspace, monitor);
-        this._model.setWindows(snapshot.map(candidate => ({
-            ...candidate,
-            minimized: candidate.minimized && !this._ledger.has(candidate.window),
-        })));
+        this._setWindows(snapshot);
         this._strip.prepare(this._model.windows);
         // Explicit selection may restore the root, but must preserve dialogs
         // that the user minimized independently.
@@ -182,10 +214,7 @@ export class StageController {
             this._ledger.restore(window);
         if (record.window.minimized)
             record.window.unminimize();
-        this._model.setWindows(this._tracker.records.map(candidate => ({
-            ...candidate,
-            minimized: candidate.minimized && !this._ledger.has(candidate.window),
-        })));
+        this._setWindows(this._tracker.records);
         if (!this._model.activate(id))
             return;
         this._lastFocus = record.window;
@@ -204,10 +233,8 @@ export class StageController {
     }
 
     destroy() {
-        if (this._refreshId) {
-            GLib.Source.remove(this._refreshId);
-            this._refreshId = 0;
-        }
+        this._destroyed = true;
+        this._cancelRefresh();
         for (const [object, id] of this._connections)
             object.disconnect(id);
         this._connections = [];
@@ -216,13 +243,16 @@ export class StageController {
         this._lastFocus = null;
         try {
             this._ledger.restoreAll();
-            this._arranger.destroy();
         } finally {
-            if (this._strip) {
-                this._strip.destroy();
-                this._strip = null;
+            try {
+                this._arranger.destroy();
+            } finally {
+                if (this._strip) {
+                    this._strip.destroy();
+                    this._strip = null;
+                }
+                this._settings = null;
             }
-            this._settings = null;
         }
     }
 }

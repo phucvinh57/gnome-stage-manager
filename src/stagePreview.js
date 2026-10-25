@@ -17,7 +17,6 @@ const MAX_CAPTURE_BYTES = 64 * 1024 * 1024;
 const SNAPSHOT_BUDGET = 16 * 1024 * 1024;
 const MAX_SNAPSHOTS = 20;
 const snapshots = new Map(); // insertion order: oldest successful capture first
-let snapshotBytes = 0;
 
 /** Focus-preserving card with an optional in-memory last-visible snapshot.
  * Call capture() BEFORE minimizing a window, including the active stage. Hidden
@@ -37,7 +36,6 @@ export class StagePreview {
         this._snapshotWidth = 0;
         this._snapshotHeight = 0;
         this._width = 160;
-        this._height = 90;
 
         this.actor = new St.Button({
             style_class: 'stage-manager-card',
@@ -87,11 +85,16 @@ export class StagePreview {
             this._onActivate = null;
         }));
         this._updateTitle();
+        this._syncThumbnail();
         this.refresh();
     }
 
     get window() {
         return this._window;
+    }
+
+    get previewHeight() {
+        return this._thumbnail.height;
     }
 
     _updateTitle() {
@@ -112,7 +115,10 @@ export class StagePreview {
     }
 
     setPreviewWidth(width) {
-        this._width = Math.max(1, width);
+        width = Math.max(1, width);
+        if (width === this._width)
+            return;
+        this._width = width;
         this._syncThumbnail();
     }
 
@@ -120,9 +126,13 @@ export class StagePreview {
     refresh(record = null) {
         if (!this.actor || !this._window)
             return;
-        if (record)
-            this._awaitingFrame = Boolean(record.awaitingFrame);
+        const awaitingFrame = record ? Boolean(record.awaitingFrame) : this._awaitingFrame;
         const source = this._window.get_compositor_private();
+        // Geometry, visibility and title changes have their own signals. A
+        // different window opening must not repaint this unchanged thumbnail.
+        if (source === this._source && awaitingFrame === this._awaitingFrame)
+            return;
+        this._awaitingFrame = awaitingFrame;
         if (source !== this._source) {
             this._detachSource();
             if (source) {
@@ -178,7 +188,7 @@ export class StagePreview {
         // cards only. This limits accounted bytes, not delayed native release.
         // Evictions are not rolled back if the subsequent capture fails.
         while (snapshots.size + (snapshots.has(this) ? 0 : 1) > MAX_SNAPSHOTS ||
-            snapshotBytes + bytes > SNAPSHOT_BUDGET) {
+            [...snapshots.values()].reduce((total, size) => total + size, bytes) > SNAPSHOT_BUDGET) {
             const oldest = [...snapshots.keys()].find(card => card !== this);
             if (!oldest)
                 return false;
@@ -208,7 +218,6 @@ export class StagePreview {
             this._snapshotHeight = source.height;
             this._thumbnail.add_child(this._snapshot);
             snapshots.set(this, bytes);
-            snapshotBytes += bytes;
         } catch (_error) {
             // A missing surface or a failed GPU allocation must not break stages.
             this._syncThumbnail();
@@ -229,16 +238,16 @@ export class StagePreview {
             return;
         const source = this._source;
         // Match each window's aspect ratio instead of a fixed black 16:9 tile.
-        const width = this._isVisibleSource() ? source.width : this._snapshotWidth;
-        const height = this._isVisibleSource() ? source.height : this._snapshotHeight;
+        const visible = this._isVisibleSource();
+        const width = visible ? source.width : this._snapshotWidth;
+        const height = visible ? source.height : this._snapshotHeight;
         const ratio = width > 0 && height > 0 ? height / width : 9 / 16;
-        this._height = Math.max(1, Math.round(this._width * Math.min(1.4, ratio)));
-        this._thumbnail.height = this._height;
+        this._thumbnail.height = Math.max(1, Math.round(this._width * Math.min(1.4, ratio)));
         this._thumbnail.width = this._width;
         const transform = new Graphene.Matrix();
-        transform.init_from_float(previewTransform(this._width, this._height));
+        transform.init_from_float(previewTransform(this._width, this.previewHeight));
         this._thumbnail.set_transform(transform);
-        if (!this._isVisibleSource()) {
+        if (!visible) {
             this._clearClone();
             if (this._snapshot) {
                 this._fit(this._snapshot, this._snapshotWidth, this._snapshotHeight);
@@ -267,13 +276,12 @@ export class StagePreview {
     }
 
     _fit(actor, width, height) {
-        const scale = Math.min(this._width / width, this._height / height);
+        const scale = Math.min(this._width / width, this.previewHeight / height);
         actor.set_size(Math.max(1, Math.floor(width * scale)),
             Math.max(1, Math.floor(height * scale)));
     }
 
     _clearSnapshot() {
-        snapshotBytes -= snapshots.get(this) ?? 0;
         snapshots.delete(this);
         if (this._snapshot) {
             this._snapshot.content = null;

@@ -1,5 +1,5 @@
 import GLib from 'gi://GLib';
-import {maximizeFlags, restoreMaximizeFlags, unmaximizeWindow} from './shellCompat.js';
+import {maximizeFlags, unmaximizeWindow} from './shellCompat.js';
 const RESIZE_SETTLE_MS = 300;
 
 function sameRect(a, b) {
@@ -30,12 +30,17 @@ export class WindowArranger {
         ];
     }
 
-    sync(records, target) {
+    // Retention follows eligibility on the primary monitor, across workspaces.
+    // Leaving the active workspace must not discard settled resize state.
+    retain(records) {
         const wanted = new Set(records.map(record => record.window));
         for (const window of this._states.keys()) {
             if (!wanted.has(window))
-                this._release(window, window.get_monitor() !== this._states.get(window).monitor);
+                this.forget(window);
         }
+    }
+
+    sync(records, target) {
         if (!target)
             return;
         for (const {window} of records)
@@ -48,12 +53,8 @@ export class WindowArranger {
         let state = this._states.get(window);
         if (!state) {
             state = {
-                original: copyRect(window.get_frame_rect()),
-                maximized: maximizeFlags(window),
-                monitor: window.get_monitor(),
                 signals: [],
                 timeoutId: 0,
-                requested: null,
                 settled: null,
                 constrained: false,
                 retryAfterPending: false,
@@ -66,16 +67,12 @@ export class WindowArranger {
                 state.signals.push(window.connect(signal, () => this._changed(window)));
             state.signals.push(window.connect('notify::fullscreen', () => {
                 this._cancelTimeout(state);
-                state.requested = null;
                 state.constrained = false;
                 state.maxAttempts = 0;
                 this._onChanged();
             }));
         }
-        const key = `${target.x},${target.y},${target.width},${target.height}`;
-        if (state.key !== key) {
-            state.key = key;
-            state.requested = null;
+        if (!state.target || !sameRect(state.target, target)) {
             state.settled = null;
             state.constrained = false;
             state.retryAfterPending = false;
@@ -87,7 +84,6 @@ export class WindowArranger {
         if (state.constrained && maximizeFlags(window) && state.maxAttempts < 2) {
             // Mutter can finish maximizing after the previous resize settles.
             state.constrained = false;
-            state.requested = null;
         }
         if (maximizeFlags(window) && state.maxAttempts >= 2 && !state.timeoutId) {
             state.constrained = true;
@@ -96,14 +92,11 @@ export class WindowArranger {
         if (state.timeoutId || state.constrained ||
             (maximizeFlags(window) === 0 && sameRect(window.get_frame_rect(), target)))
             return;
-        if (state.requested === key)
-            return;
         const wasMaximized = maximizeFlags(window) !== 0;
         if ((!window.allows_resize() || !window.allows_move()) && !wasMaximized) {
             state.constrained = true;
             return;
         }
-        state.requested = key;
         state.constrained = false;
         state.retryAfterPending = false;
         state.sawTarget = sameRect(window.get_frame_rect(), target);
@@ -113,7 +106,6 @@ export class WindowArranger {
             if (maximizeFlags(window) || state.retryAfterPending) {
                 // A user action during the pending client resize is a new
                 // request, rather than evidence of a size-constrained client.
-                state.requested = null;
                 state.constrained = false;
             } else {
                 state.constrained = !sameRect(state.settled, target);
@@ -149,7 +141,6 @@ export class WindowArranger {
         if (state.constrained && state.settled && sameRect(current, state.settled) &&
             maximizeFlags(window) === 0)
             return;
-        state.requested = null;
         state.constrained = false;
         this._onChanged();
     }
@@ -169,59 +160,6 @@ export class WindowArranger {
         state.timeoutId = 0;
     }
 
-    _release(window, movedMonitor = null) {
-        const state = this._states.get(window);
-        if (!state)
-            return;
-        movedMonitor ??= window.get_monitor() !== state.monitor;
-        this._states.delete(window);
-        this._cancelTimeout(state);
-        for (const id of state.signals)
-            window.disconnect(id);
-        this._grabbed.delete(window);
-        if (movedMonitor)
-            return;
-        const wasFullscreen = window.is_fullscreen();
-        const restoreFrame = () => {
-            if (!window.get_workspace())
-                return;
-            if (maximizeFlags(window))
-                unmaximizeWindow(window);
-            window.move_resize_frame(false, state.original.x, state.original.y,
-                state.original.width, state.original.height);
-            if (state.maximized)
-                restoreMaximizeFlags(window, state.maximized);
-        };
-        if (!wasFullscreen) {
-            restoreFrame();
-            return;
-        }
-        // Mutter saves a pre-fullscreen rect when entering fullscreen. Let
-        // its exit complete and the restored frame settle before reentering,
-        // so a later user exit returns to the original frame.
-        window.unmake_fullscreen();
-        let exitChecks = 0;
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-            if (window.is_fullscreen() && exitChecks++ < 20)
-                return GLib.SOURCE_CONTINUE;
-            if (!window.get_workspace())
-                return GLib.SOURCE_REMOVE;
-            restoreFrame();
-            let frameChecks = 0;
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-                if (!window.get_workspace())
-                    return GLib.SOURCE_REMOVE;
-                const settled = sameRect(window.get_frame_rect(), state.original) &&
-                    maximizeFlags(window) === state.maximized;
-                if (!settled && frameChecks++ < 10)
-                    return GLib.SOURCE_CONTINUE;
-                window.make_fullscreen();
-                return GLib.SOURCE_REMOVE;
-            });
-            return GLib.SOURCE_REMOVE;
-        });
-    }
-
     forget(window) {
         const state = this._states.get(window);
         if (!state)
@@ -233,16 +171,17 @@ export class WindowArranger {
         this._grabbed.delete(window);
     }
 
-    restoreAll() {
+    releaseAll() {
         for (const window of this._states.keys())
-            this._release(window);
+            this.forget(window);
     }
 
     destroy() {
-        this.restoreAll();
+        this.releaseAll();
         for (const id of this._signals)
             global.display.disconnect(id);
         this._signals = [];
+        this._grabbed.clear();
         this._onChanged = null;
     }
 }
