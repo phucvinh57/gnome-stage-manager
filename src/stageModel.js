@@ -1,38 +1,10 @@
-/**
- * Pure stage-selection state; deliberately independent of GNOME/GI.
- *
- * IDs and context values are opaque and compared by identity (Map / ===).
- * Call setContext(workspace, monitor) to select an exact context. Initially
- * there is no context. setWindows() replaces the complete, global snapshot;
- * records need a non-null id. Duplicate IDs use the first record. Records are
- * shallow-copied; caller order is used for newly discovered windows only.
- *
- * windows: all records in the current context, including minimized windows,
- * in stable discovery order. orderedWindows: the same records, MRU first,
- * followed by never-selected records in discovery order. Both return fresh
- * arrays and shallow copies, so callers cannot mutate internal records.
- *
- * Only non-minimized windows may be active or cycled to. A controller that
- * minimizes inactive windows itself must report those as minimized: false.
- * An eligible active window survives snapshot/context updates. Otherwise the
- * most recently selected eligible window wins, then the first eligible window
- * in discovery order. With no eligible windows, activeId is null.
- *
- * activate(id) returns true for an eligible current-context ID (including an
- * already-active ID), false otherwise. remove(id) returns whether it existed.
- * nextId(direction = 1) is a method, not a getter: it does not mutate state.
- * Positive/negative directions move one step forward/backward in stable
- * discovery order, NOT MRU order; zero returns activeId. With no active window
- * it returns the first/last eligible ID, or null if none exist.
- */
+// Stable discovery order for cycling; selection history supplies fallbacks.
 export class StageModel {
     constructor() {
         this._records = new Map();
         this._mru = [];
         this._activeId = null;
-        this._hasContext = false;
-        this._workspace = undefined;
-        this._monitor = undefined;
+        this._context = null;
     }
 
     setWindows(records) {
@@ -60,9 +32,7 @@ export class StageModel {
     }
 
     setContext(workspace, monitor) {
-        this._workspace = workspace;
-        this._monitor = monitor;
-        this._hasContext = true;
+        this._context = {workspace, monitor};
         this._reconcile();
     }
 
@@ -118,8 +88,8 @@ export class StageModel {
     }
 
     _inContext(record) {
-        return this._hasContext && record !== undefined &&
-            record.workspace === this._workspace && record.monitor === this._monitor;
+        return this._context !== null && record !== undefined &&
+            record.workspace === this._context.workspace && record.monitor === this._context.monitor;
     }
 
     _isEligible(record) {

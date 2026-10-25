@@ -22,14 +22,12 @@ export class MinimizeLedger {
 
         // notify::minimized can run inside minimize().
         this._owned.add(window);
-        let completed = false;
         try {
             window.minimize();
-            completed = true;
             return true;
-        } finally {
-            if (!completed)
-                this._owned.delete(window);
+        } catch (error) {
+            this._owned.delete(window);
+            throw error;
         }
     }
 
