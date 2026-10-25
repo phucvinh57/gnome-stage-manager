@@ -2,11 +2,14 @@
 // Do NOT upload to extensions.gnome.org (EGO) unless you understand JavaScript
 // and can maintain this code.
 import GLib from 'gi://GLib';
+import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {StageModel} from './stageModel.js';
 import {MinimizeLedger} from './minimizeLedger.js';
 import {WindowTracker} from './windowTracker.js';
 import {StageStrip} from './stageStrip.js';
+import {WindowArranger} from './windowArranger.js';
+import {stageGeometry} from './stageGeometry.js';
 
 export class StageController {
     constructor(settings) {
@@ -17,10 +20,12 @@ export class StageController {
         this._refreshId = 0;
         this._lastFocus = null;
         this._pendingRestore = null;
+        this._arranger = new WindowArranger(() => this._queueRefresh());
         this._tracker = new WindowTracker(
             () => this._queueRefresh(),
             window => {
                 this._ledger.forget(window);
+                this._arranger.forget(window);
                 if (this._pendingRestore === window)
                     this._pendingRestore = null;
             },
@@ -41,6 +46,8 @@ export class StageController {
         this._connect(Main.layoutManager, 'monitors-changed', () => this._queueRefresh());
         this._connect(global.display, 'workareas-changed', () => this._queueRefresh());
         this._connect(global.display, 'in-fullscreen-changed', () => this._queueRefresh());
+        this._connect(St.ThemeContext.get_for_stage(global.stage), 'notify::scale-factor',
+            () => this._queueRefresh());
         this._connect(Main.overview, 'showing', () => this._refresh());
         this._connect(Main.overview, 'hidden', () => this._queueRefresh());
         this._connect(Main.sessionMode, 'updated', () => this._refresh());
@@ -79,6 +86,7 @@ export class StageController {
     _refresh() {
         if (this.suspended) {
             this._ledger.restoreAll();
+            this._arranger.restoreAll();
             this._lastFocus = null;
             this._pendingRestore = null;
             this._strip.setVisible(false);
@@ -89,6 +97,13 @@ export class StageController {
         const monitor = Main.layoutManager.primaryIndex;
         const records = this._tracker.records;
         const inContext = records.filter(record => record.workspace === workspace && record.monitor === monitor);
+        const area = Main.layoutManager.getWorkAreaForMonitor(monitor);
+        const geometry = area.width > 0 && area.height > 0
+            ? stageGeometry(area, this._settings.get_string('strip-edge'),
+                this._settings.get_int('preview-width'), this._settings.get_int('window-padding'),
+                this._settings.get_int('strip-gap'))
+            : null;
+        this._arranger.sync(inContext.filter(record => !record.awaitingFrame), geometry?.window);
         const members = new Set(inContext.flatMap(record => this._tracker.familyFor(record.window)));
         for (const window of this._ledger.windows) {
             if (!members.has(window))
@@ -115,7 +130,9 @@ export class StageController {
         this._strip.prepare(this._model.windows);
         this._applyVisibility();
         this._strip.update(this._model.windows, this._model.activeId);
-        this._strip.setVisible(!global.display.get_monitor_in_fullscreen(monitor));
+        const active = this._model.windows.find(record => record.id === this._model.activeId);
+        this._strip.setVisible(!global.display.get_monitor_in_fullscreen(monitor) &&
+            (!active || this._arranger.canShowStrip(active.window)));
     }
 
     _applyVisibility() {
@@ -128,6 +145,10 @@ export class StageController {
         }
         for (const record of this._model.windows) {
             if (record.id === this._model.activeId)
+                continue;
+            // A newly mapped client may not have supplied its first buffer yet.
+            // Let Mutter paint it before taking the image and minimizing it.
+            if (record.awaitingFrame || this._arranger.isPending(record.window))
                 continue;
             if (!record.window.minimized)
                 this._strip.capture(record.window);
@@ -195,6 +216,7 @@ export class StageController {
         this._lastFocus = null;
         try {
             this._ledger.restoreAll();
+            this._arranger.destroy();
         } finally {
             if (this._strip) {
                 this._strip.destroy();

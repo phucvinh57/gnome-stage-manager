@@ -3,6 +3,7 @@ import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as Scripting from 'resource:///org/gnome/shell/ui/scripting.js';
+import {stageGeometry} from '../src/stageGeometry.js';
 
 export const METRICS = {};
 const UUID = 'stage-manager@phucvinh57';
@@ -47,12 +48,45 @@ export async function run() {
     assert(windows.length === 3, 'three test windows mapped');
     const [first, second, userMinimized] = windows;
     console.log(`Perf-helper client protocols: ${windows.map(window => `${window.get_client_type() === Meta.WindowClientType.WAYLAND ? 'Wayland' : 'X11/XWayland'} (${window.get_wm_class()})`).join(', ')}`);
+    second.maximize();
+    await settle();
+    const secondMaximized = second.get_maximize_flags();
+    assert(secondMaximized !== 0, 'test starts with a maximized existing window');
     userMinimized.minimize();
     Main.activateWindow(first);
     await settle();
+    const originalFrames = new Map(windows.map(window => {
+        const frame = window.get_frame_rect();
+        return [window, {x: frame.x, y: frame.y, width: frame.width, height: frame.height}];
+    }));
     settings.set_boolean('stage-enabled', true);
     await settle();
     let controller = instance._controller;
+    const expectedFrame = () => stageGeometry(
+        Main.layoutManager.getWorkAreaForMonitor(Main.layoutManager.primaryIndex),
+        settings.get_string('strip-edge'), settings.get_int('preview-width'),
+        settings.get_int('window-padding'), settings.get_int('strip-gap')).window;
+    const matchesFrame = window => {
+        const frame = window.get_frame_rect();
+        const expected = expectedFrame();
+        return ['x', 'y', 'width', 'height'].every(part => frame[part] === expected[part]);
+    };
+    await waitFor(() => windows.every(matchesFrame), 'existing windows fill the reserved layout');
+    assert(windows.every(matchesFrame), 'existing windows share one frame including hidden stages');
+    assert(!controller._strip.actor.visible ||
+        controller._strip.actor.x >= first.get_frame_rect().x + first.get_frame_rect().width,
+    'right strip stays beside the active window');
+    const requested = first.get_frame_rect();
+    first.move_resize_frame(true, requested.x + 30, requested.y + 20, 450, 280);
+    await Scripting.sleep(700);
+    await waitFor(() => matchesFrame(first), 'manual resize is reapplied');
+    assert(matchesFrame(first), 'manual resize returns to the reserved frame');
+    first.maximize();
+    await Scripting.sleep(700);
+    await waitFor(() => !first.get_maximize_flags() && matchesFrame(first),
+        'manual maximization is reapplied');
+    assert(!first.get_maximize_flags() && matchesFrame(first),
+        'manual maximization returns to the reserved frame');
     assert(!first.minimized && second.minimized, 'enabling keeps focused window and minimizes inactive window');
     assert(controller._ledger.has(second), 'inactive minimization is extension-owned');
     assert(!controller._ledger.has(userMinimized), 'preexisting user minimization is not owned');
@@ -92,8 +126,9 @@ export async function run() {
     assert(!firstCard.capture() && firstCard._snapshot === retainedSnapshot && first.minimized,
         'recapture of an inactive window retains its image without restoring it');
     const minimizedCard = controller._strip._cards.get(userMinimized.get_stable_sequence());
-    assert(!minimizedCard._snapshot && minimizedCard._fallback.visible,
-        'untouched originally minimized root uses the icon fallback');
+    assert(!minimizedCard._snapshot && minimizedCard._fallback.visible &&
+        !minimizedCard._icon.visible && minimizedCard._thumbnail.width === minimizedCard._width,
+    'icon fallback has a full-width tile without a duplicate app badge');
     controller.cycle(1);
     await settle();
     assert(controller.activeId === first.get_stable_sequence(), 'keyboard cycle skips user-minimized stage');
@@ -106,6 +141,10 @@ export async function run() {
     assert(controller.activeId === secondId && first.minimized, 'native external activation selects stage');
     settings.set_string('strip-edge', 'left');
     settings.set_int('preview-width', 220);
+    settings.set_int('window-padding', 24);
+    settings.set_int('strip-gap', 32);
+    await waitFor(() => windows.every(matchesFrame), 'live preferences resize each stage');
+    assert(windows.every(matchesFrame), 'live edge, width, padding and gap reflow windows');
     await settle();
     Main.overview.show();
     await settle();
@@ -116,6 +155,13 @@ export async function run() {
     settings.set_boolean('stage-enabled', false);
     await settle();
     assert(!first.minimized && !second.minimized && userMinimized.minimized, 'toggle off restores only extension-owned windows');
+    assert(windows.every(window => {
+        const frame = window.get_frame_rect();
+        const original = originalFrames.get(window);
+        return ['x', 'y', 'width', 'height'].every(part => frame[part] === original[part]);
+    }), 'toggle off restores original frames');
+    assert(second.get_maximize_flags() === secondMaximized,
+        'toggle off restores the original maximize state');
     settings.set_boolean('stage-enabled', true);
     await settle();
     Main.extensionManager.disableExtension(UUID);
@@ -187,7 +233,8 @@ export async function run() {
         'fullscreen scenario really enters monitor fullscreen');
     assert(!controller._strip.actor.visible, 'fullscreen suppresses the stage strip');
     first.unmake_fullscreen();
-    await settle();
+    await waitFor(() => controller._strip.actor.visible,
+        'leaving fullscreen restores the strip after frame resize');
     assert(controller._strip.actor.visible, 'leaving fullscreen restores the stage strip');
 
     second.make_above();
@@ -231,9 +278,61 @@ export async function run() {
     assert(true, 'preferences launch request succeeds on the isolated session bus');
     if (GLib.getenv('STAGE_MANAGER_TEST_LARGE') === '1')
         await testLargeSnapshots(currentSettings, controller, second);
+    await testNewWindowFirstFrame(currentSettings, controller, second);
+    await testFullscreenDisable(currentSettings, controller, second);
     await Scripting.destroyTestWindows();
     await settle();
     console.log('STAGE_MANAGER_INTEGRATION_PASS');
+}
+
+async function testFullscreenDisable(settings, controller, window) {
+    Main.activateWindow(window);
+    settings.set_boolean('stage-enabled', true);
+    await waitFor(() => Boolean(controller._arranger._states.get(window)),
+        'fullscreen test window is arranged');
+    const original = controller._arranger._states.get(window).original;
+    window.make_fullscreen();
+    await settle();
+    settings.set_boolean('stage-enabled', false);
+    await Scripting.sleep(900);
+    assert(window.is_fullscreen(), 'disabling Stage Manager preserves fullscreen');
+    window.unmake_fullscreen();
+    await settle();
+    const frame = window.get_frame_rect();
+    assert(['x', 'y', 'width', 'height'].every(part => frame[part] === original[part]),
+        'fullscreen window recovers its original frame after exit');
+}
+
+async function testNewWindowFirstFrame(settings, controller, selectedRoot) {
+    Main.activateWindow(selectedRoot);
+    settings.set_boolean('stage-enabled', true);
+    await settle();
+    const previous = new Set(global.get_window_actors().map(actor => actor.meta_window));
+    await Scripting.createTestWindow({width: 480, height: 320});
+    await Scripting.waitTestWindows();
+    await waitFor(() => global.get_window_actors().some(actor =>
+        !previous.has(actor.meta_window) && actor.meta_window.get_title().includes('gnome-shell-perf-helper')),
+    'new window maps while stage management is active');
+    const opened = global.get_window_actors().map(actor => actor.meta_window)
+        .find(window => !previous.has(window) && window.get_title().includes('gnome-shell-perf-helper'));
+    await waitFor(() => !controller._tracker.records.find(record => record.window === opened)?.awaitingFrame,
+        'new window supplies its first frame');
+    controller.activate(selectedRoot.get_stable_sequence());
+    await waitFor(() => opened.minimized &&
+        Boolean(controller._strip._cards.get(opened.get_stable_sequence())?._snapshot),
+    'newly opened inactive window is captured before minimization');
+    const card = controller._strip._cards.get(opened.get_stable_sequence());
+    assert(card._snapshot.visible && !card._fallback.visible && card._icon.visible,
+        'newly opened window displays its captured frame and one app badge');
+    const layout = stageGeometry(Main.layoutManager.getWorkAreaForMonitor(Main.layoutManager.primaryIndex),
+        settings.get_string('strip-edge'), settings.get_int('preview-width'),
+        settings.get_int('window-padding'), settings.get_int('strip-gap'));
+    await waitFor(() => ['x', 'y', 'width', 'height'].every(part =>
+        opened.get_frame_rect()[part] === layout.window[part]),
+    'newly opened window uses the reserved frame');
+    assert(true, 'newly opened eligible window shares the stage frame');
+    settings.set_boolean('stage-enabled', false);
+    await settle();
 }
 
 async function testLargeSnapshots(settings, controller, otherRoot) {
@@ -358,6 +457,15 @@ async function testTransients(settings, controller, otherRoot) {
         await settle();
         assert(!root.minimized && !dialog.minimized && dialog.showing_on_its_workspace(),
             'selecting a family restores its root and makes the transient visible');
+        await fixtureCall('ShowFixed');
+        await waitFor(() => find('StageManagerFixture fixed'), 'fixed-size GTK fixture mapped');
+        const fixed = find('StageManagerFixture fixed');
+        controller.activate(fixed.get_stable_sequence());
+        await waitFor(() => Boolean(controller._arranger._states.get(fixed)?.constrained),
+            'fixed-size window is recognized as constrained');
+        assert(!fixed.allows_resize() && !controller._strip.actor.visible &&
+            !controller._arranger._states.get(fixed).requested,
+        'fixed-size window hides the strip without repeated resize requests');
         if (!dialog.can_minimize()) {
             console.log('SKIP: Mutter modal transient cannot be independently user-minimized');
             settings.set_boolean('stage-enabled', false);

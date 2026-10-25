@@ -50,6 +50,10 @@ export default class StageManagerPreferences extends ExtensionPreferences {
 
         this._addSpinRow(appearance, settings, 'preview-width',
             'Preview width', 'Width in logical pixels', 100, 320, 10);
+        this._addSpinRow(appearance, settings, 'window-padding',
+            'Window padding', 'Logical pixels around windows and previews', 0, 128, 1);
+        this._addSpinRow(appearance, settings, 'strip-gap',
+            'Strip gap', 'Logical pixels between windows and previews', 0, 128, 1);
         this._addSpinRow(appearance, settings, 'animation-duration',
             'Animation duration', 'Milliseconds; set to 0 for no animation', 0, 400, 10);
 

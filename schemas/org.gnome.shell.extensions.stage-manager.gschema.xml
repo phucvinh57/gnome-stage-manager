@@ -21,6 +21,18 @@
       <summary>Preview width</summary>
       <description>Window preview width in logical pixels.</description>
     </key>
+    <key name="window-padding" type="i">
+      <range min="0" max="128"/>
+      <default>16</default>
+      <summary>Window padding</summary>
+      <description>Padding around the window and preview strip in logical pixels.</description>
+    </key>
+    <key name="strip-gap" type="i">
+      <range min="0" max="128"/>
+      <default>16</default>
+      <summary>Strip gap</summary>
+      <description>Space between the arranged window and preview strip in logical pixels.</description>
+    </key>
     <key name="animation-duration" type="i">
       <range min="0" max="400"/>
       <default>160</default>

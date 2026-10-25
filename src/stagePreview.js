@@ -27,6 +27,7 @@ export class StagePreview {
     constructor(record, onActivate) {
         this.id = record.id;
         this._window = record.window;
+        this._awaitingFrame = Boolean(record.awaitingFrame);
         this._onActivate = onActivate;
         this._windowSignals = [];
         this._sourceSignals = [];
@@ -116,9 +117,11 @@ export class StagePreview {
     }
 
     /** Retry after controller refresh/map; no clone before an actor exists. */
-    refresh() {
+    refresh(record = null) {
         if (!this.actor || !this._window)
             return;
+        if (record)
+            this._awaitingFrame = Boolean(record.awaitingFrame);
         const source = this._window.get_compositor_private();
         if (source !== this._source) {
             this._detachSource();
@@ -128,12 +131,16 @@ export class StagePreview {
                     this._sourceSignals.push(source.connect(signal, () => this._syncThumbnail()));
                 // Keep one safe last-visible image even if the user minimizes
                 // the active window before the controller gets a capture chance.
-                this._sourceSignals.push(source.connect('first-frame', () => this.capture()));
+                this._sourceSignals.push(source.connect('first-frame', () => {
+                    this._awaitingFrame = false;
+                    this.capture();
+                }));
                 this._sourceSignals.push(source.connect('destroy', () => this._detachSource()));
                 // Already-mapped actors emitted first-frame before this card
                 // existed. This is still visible-only and never restores users'
                 // minimized windows. capture()->refresh() now sees this source.
-                this.capture();
+                if (!this._awaitingFrame)
+                    this.capture();
             }
         }
         this._syncThumbnail();
@@ -150,6 +157,8 @@ export class StagePreview {
         if (!this.actor || !this._window)
             return false;
         this.refresh();
+        if (this._awaitingFrame)
+            return false;
         const source = this._source;
         if (!this._isVisibleSource())
             return false;
@@ -223,6 +232,7 @@ export class StagePreview {
         const ratio = width > 0 && height > 0 ? height / width : 9 / 16;
         this._height = Math.max(1, Math.round(this._width * Math.min(1.4, ratio)));
         this._thumbnail.height = this._height;
+        this._thumbnail.width = this._width;
         const transform = new Graphene.Matrix();
         transform.init_from_float(previewTransform(this._width, this._height));
         this._thumbnail.set_transform(transform);
@@ -232,8 +242,10 @@ export class StagePreview {
                 this._fit(this._snapshot, this._snapshotWidth, this._snapshotHeight);
                 this._snapshot.show();
                 this._fallback.hide();
+                this._icon.show();
             } else {
                 this._fallback.show();
+                this._icon.hide();
             }
             return;
         }
@@ -249,6 +261,7 @@ export class StagePreview {
         }
         this._fit(this._clone, source.width, source.height);
         this._fallback.hide();
+        this._icon.show();
     }
 
     _fit(actor, width, height) {

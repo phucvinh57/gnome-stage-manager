@@ -1,16 +1,16 @@
 # Manual validation — GNOME 51 Stage Manager
 
-**Interactive tests are pending.** Lint, all 34 Node unit tests, and strict schema validation passed on 2026-10-25. Unchecked items below remain planned checks, not passed desktop results. The verified environment is Ubuntu 26.10 / GNOME Shell 51.0 / Wayland, primary display 3840×2400 at scale 2, Ubuntu Dock enabled, Tiling Assistant not enabled. No extension compatibility result follows from that environment verification.
+**Interactive tests are pending.** Lint, Node unit tests, strict schema validation, and the isolated Shell test passed on 2026-10-25. Unchecked items below remain planned checks, not passed desktop results. The verified environment is Ubuntu 26.10 / GNOME Shell 51.0 / Wayland, primary display 3840×2400 at scale 2, Ubuntu Dock enabled, Tiling Assistant not enabled. No extension compatibility result follows from that environment verification.
 
 For every run, record date, source revision/snapshot, Shell version, session type, monitor geometry/scaling, enabled extensions, steps, actual results, and relevant logs. Mark items only after observing them; note unavailable hardware/features as not tested rather than passed. Use disposable windows and save work first.
 
 ## Preparation and automated checks
 
 - [ ] Confirm `gnome-shell --version`, Ubuntu release, Wayland session, primary monitor and scaling; record any differences from the environment above.
-- [x] Run `npm run check`: exit 0 on 2026-10-25; ESLint, 34/34 Node tests, and strict schema dry-run passed. This is not desktop integration validation.
+- [x] Run `npm run check`: exit 0 on 2026-10-25; ESLint, four Node test files, and strict schema dry-run passed. This is not desktop integration validation.
 - [x] Packaging creates `dist/stage-manager@phucvinh57.shell-extension.zip` without live installation/enabling or publication (2026-10-25).
 - [x] `tests/shellIntegration.js` is supplied for isolated controller/compositor checks; passing it does not replace the interactive matrix below.
-- [x] `npm run test:shell`: exit 0, 51 assertions, `STAGE_MANAGER_INTEGRATION_PASS`, no JavaScript errors (2026-10-25). Log: `dist/shell-test.log`. Not proof of full interactive coverage.
+- [x] `npm run test:shell`: exit 0, 64 assertions, `STAGE_MANAGER_INTEGRATION_PASS`, no JavaScript errors (2026-10-25). Log: `dist/shell-test.log`. Not proof of full interactive coverage.
 - [ ] Install Ubuntu's `mutter-dev-bin`, then run `npm run test:interactive` for a disposable visual Shell. The launcher now compiles schemas in its temporary extension directory; startup was blocked here by the missing development kit.
 - [x] Shell testing used temporary XDG/runtime directories and a private D-Bus session, with invoking display variables unset; no live installation/enabling or live settings edits.
 - [ ] Install locally with `gnome-extensions install --force dist/stage-manager@phucvinh57.shell-extension.zip`, log out/in, then run `gnome-extensions enable stage-manager@phucvinh57`. Confirm these are explicit steps, not side effects of packing.
@@ -18,15 +18,18 @@ For every run, record date, source revision/snapshot, Shell version, session typ
 
 ## Basic stages and keyboard access
 
-- [ ] Open three distinguishable normal windows A/B/C on the primary monitor/current workspace. Record positions and sizes. Turn on the panel switch; verify one active stage and cards for the other windows.
-- [ ] Select A/B/C repeatedly by card. Confirm the selected window is restored/focused, inactive eligible windows are minimized, and original positions/sizes remain unchanged.
+- [ ] Open three distinguishable normal windows A/B/C on the primary monitor/current workspace. Record positions, sizes, and maximize state. Turn on the panel switch; verify all eligible windows use one frame beside the strip.
+- [ ] Select A/B/C repeatedly by card. Confirm the selected window is restored/focused, inactive eligible windows are minimized, and switching stages does not change their shared frame.
 - [ ] Test `<Super><Shift>space`, `<Super><Shift>bracketright`, and `<Super><Shift>bracketleft`. Confirm toggle and stable forward/backward wraparound without two-window oscillation. Check the actual keyboard layout for conflicts.
 - [ ] While stage management is off, invoke next/previous and verify it turns on. Confirm unrelated shortcuts are unaffected.
 - [ ] Reach the strip through Ctrl+Alt+Tab; navigate cards with Tab/arrows and activate with Space/Enter. Check visible focus, readable titles, and that passive refreshes do not steal focus.
 - [ ] Create enough windows to overflow the strip. Scroll and keyboard-navigate to offscreen cards; confirm the selected card becomes visible and cards do not shrink to unusable sizes.
 - [ ] Verify frameless, left-tilted window images with app badges and no solid strip/card rectangles. Compare landscape and portrait windows; check hover, focus outline, clipping, and both strip edges at widths 100/180/320 and scale 1/2. Titles should remain announced by accessibility tools even though no title row is drawn.
 - [ ] Verify title/icon updates and reasonable icon fallbacks. Minimized/unallocated actors must not be restored just to produce thumbnails; do not require continuously live previews.
-- [ ] Check the default right-edge overlay with maximized windows. Record overlap and blocked content; no reserved work area, window movement, or resizing is expected. Repeat on the left edge.
+- [ ] With stage management on, launch Telegram and another slow-starting app while a different stage is active. Confirm their cards appear with a rendered window after the first frame, without overlapping large/small icons. Check a previously user-minimized app shows one centered fallback icon.
+- [ ] With only one stage, note its frame. Open a second stage and verify the first keeps exactly the same frame. Repeat for both strip edges and preview widths 100/180/320.
+- [ ] Move, resize, and maximize the active window. Confirm it returns to the configured frame after the action ends and that the strip stays hidden while a resize is pending.
+- [ ] Test fixed-size and large-minimum-size applications. If their frame cannot fit, confirm the strip hides instead of covering them or repeatedly resizing them.
 
 ## Window types, focus, and minimization safety
 
@@ -44,8 +47,8 @@ For every run, record date, source revision/snapshot, Shell version, session typ
 
 - [ ] Enter Overview while stages are active. Confirm the strip hides and extension-owned minimizations are restored, while user-minimized windows are preserved. Leave Overview and check stage management resumes without a focus loop.
 - [ ] Switch between at least two workspaces, including an empty workspace. Verify only current-workspace primary-monitor windows are managed and windows leaving the context are restored if owned.
-- [ ] Move a window between workspaces while active/inactive. Check cards and restoration update without affecting unrelated workspaces.
-- [ ] With a second monitor, keep normal windows on both displays. Verify secondary-monitor windows are not stage-managed and the strip stays on the primary monitor. Move windows between monitors and check ownership release on leaving scope.
+- [ ] Move a window between workspaces while active/inactive. Check cards, original frame restoration, and maximize state without affecting unrelated workspaces.
+- [ ] With a second monitor, keep normal windows on both displays. Verify secondary-monitor windows are not stage-managed and the strip stays on the primary monitor. Move windows between monitors and check the user's placement survives release from management.
 - [ ] Change the primary monitor, then hotplug/unplug an external display. Confirm strip bounds/scaling update, no orphaned overlay remains, and windows leaving scope are restored when owned. Record fallback behavior when displays disappear.
 - [ ] Lock and unlock the session. Confirm no strip/input region on the lock screen, extension-owned windows are restored during suspension, and stage management resumes cleanly afterward.
 - [ ] Enter/leave fullscreen on the primary monitor. Confirm the strip and its input region hide while fullscreen and return appropriately; fullscreen hiding is not the same as Overview suspension. Repeat with fullscreen on a secondary monitor.
@@ -54,7 +57,8 @@ For every run, record date, source revision/snapshot, Shell version, session typ
 ## Preferences, motion, and lifecycle
 
 - [ ] Open preferences from the panel and via `gnome-extensions prefs stage-manager@phucvinh57`. Toggle management there and confirm the panel stays synchronized.
-- [ ] Change left/right edge, preview width (100–320 logical pixels, default 180), and animation duration (0–400 ms, default 160). Verify updates and retention after reopening preferences.
+- [ ] Change left/right edge, preview width (100–320 logical pixels, default 180), window padding and strip gap (0–128, default 16), and animation duration (0–400 ms, default 160). Verify window and strip move together and settings persist after reopening preferences.
+- [ ] Toggle Stage Manager off and disable the extension after arranging regular and maximized windows. Confirm their saved frames and maximize states return.
 - [ ] Edit each shortcut with a valid GTK accelerator and Apply/Enter. Confirm the binding updates, an invalid value is marked red and not saved, and clearing the field disables the action. Restore defaults afterward.
 - [ ] Enable reduced motion/disable Shell animations, including during a card fade. Confirm fades finish immediately and new cards appear without animation. Repeat with animation duration 0.
 - [ ] Repeat panel on/off at least ten times. Verify owned windows restore on off, user-minimized windows stay minimized, and there are no duplicate cards or accumulating focus issues.
@@ -63,7 +67,7 @@ For every run, record date, source revision/snapshot, Shell version, session typ
 
 ## Ubuntu extension interaction
 
-- [ ] With Ubuntu Dock enabled (the verified environment baseline), test application launch, card selection, dock restore/minimize, autohide, and maximized/fullscreen windows. Check edge overlap and input conflicts on both strip edges; do not expect the strip to reserve space.
+- [ ] With Ubuntu Dock enabled (the verified environment baseline), test application launch, card selection, dock restore/minimize, autohide, and maximized/fullscreen windows. Check strip and dock input conflicts on both edges.
 - [ ] Record that Tiling Assistant is not enabled in the baseline. In a separate deliberate run, enable it if available and test tiling, restoring, stage switching, and window geometry preservation. Record its version and interactions; do not claim compatibility without this run. Restore the original extension configuration afterward.
 
 ## Recovery drill and known limits

@@ -4,8 +4,8 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {StagePreview} from './stagePreview.js';
+import {stageGeometry} from './stageGeometry.js';
 
-const EDGE_MARGIN = 12;
 // Transparent breathing room for the tilted previews and focus outline.
 const HORIZONTAL_CHROME = 32;
 
@@ -57,6 +57,8 @@ export class StageStrip {
             this._layout();
         });
         this._connect(settings, 'changed::strip-edge', () => this._layout());
+        this._connect(settings, 'changed::window-padding', () => this._layout());
+        this._connect(settings, 'changed::strip-gap', () => this._layout());
         this._connect(Main.layoutManager, 'monitors-changed', () => this._layout());
         this._connect(global.display, 'workareas-changed', () => this._layout());
         this._connect(global.window_manager, 'map', (_wm, actor) => {
@@ -137,10 +139,10 @@ export class StageStrip {
                 if (preparing)
                     card.actor.visible = false;
             } else {
-                card.refresh();
+                card.refresh(record);
             }
             if (!preparing)
-                card.actor.visible = id !== activeId;
+                card.actor.visible = id !== activeId && !record.awaitingFrame;
             // Reordering in-place preserves the actor, key focus and scroll offset.
             if (this._list.get_child_at_index(index) !== card.actor)
                 this._list.set_child_at_index(card.actor, index);
@@ -148,7 +150,8 @@ export class StageStrip {
         }
         if (preparing)
             return;
-        this._inactiveCount = records.filter(record => record.id !== activeId).length;
+        this._inactiveCount = records.filter(record =>
+            record.id !== activeId && !record.awaitingFrame).length;
         this._layout();
         const duration = this._animationDuration();
         if (duration > 0 && this.actor.mapped) {
@@ -195,9 +198,11 @@ export class StageStrip {
             this._syncVisibility();
             return;
         }
-        const margin = Math.min(EDGE_MARGIN, Math.floor(Math.min(area.width, area.height) / 4));
-        const width = Math.max(1, Math.min(this._settings.get_int('preview-width'),
-            area.width - 2 * margin));
+        const geometry = stageGeometry(area, this._settings.get_string('strip-edge'),
+            this._settings.get_int('preview-width'), this._settings.get_int('window-padding'),
+            this._settings.get_int('strip-gap'));
+        this._hasWorkArea = geometry.hasStrip;
+        const width = Math.max(1, geometry.strip.width);
         if (width !== this._previewWidth) {
             this._previewWidth = width;
             for (const card of this._cards.values())
@@ -208,11 +213,10 @@ export class StageStrip {
         // The list is StScrollable; excess cards scroll rather than shrink.
         this.actor.height = -1;
         const [, naturalHeight] = this.actor.get_preferred_height(width);
-        const height = Math.max(1, Math.min(naturalHeight, area.height - 2 * margin));
+        const height = Math.max(1, Math.min(naturalHeight, geometry.strip.height));
         this.actor.height = height;
-        const left = this._settings.get_string('strip-edge') === 'left';
-        const x = left ? area.x + margin : area.x + area.width - margin - width;
-        this.actor.set_position(Math.round(x), Math.round(area.y + (area.height - height) / 2));
+        this.actor.set_position(geometry.strip.x,
+            Math.round(geometry.strip.y + (geometry.strip.height - height) / 2));
         this._syncVisibility();
     }
 
