@@ -1,0 +1,43 @@
+/* Frameless window previews. Only keyboard focus draws an outline; the strip
+ * itself stays transparent so the desktop shows between individual windows. */
+.stage-manager-strip {
+    padding: 6px;
+    border: none;
+    background-color: transparent;
+    color: #ffffff;
+}
+
+.stage-manager-list {
+    spacing: 14px;
+}
+
+.stage-manager-card {
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    background-color: transparent;
+    color: #ffffff;
+}
+
+.stage-manager-card:hover {
+    background-color: transparent;
+}
+
+.stage-manager-card:focus {
+    box-shadow: inset 0 0 0 2px -st-accent-color;
+}
+
+.stage-manager-card:active {
+    background-color: transparent;
+}
+
+.stage-manager-thumbnail {
+    background-color: transparent;
+}
+
+.stage-manager-app-badge {
+    padding: 3px;
+    border-radius: 7px;
+    background-color: rgba(32, 32, 36, 0.85);
+    icon-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}

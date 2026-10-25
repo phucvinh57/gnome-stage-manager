@@ -1,0 +1,192 @@
+# Stage Manager for GNOME 51
+
+An experimental, personal-use GNOME Shell extension that focuses on one window at a time and shows other windows in a preview strip. Extension UUID: `stage-manager@phucvinh57`.
+
+**Status:** experimental implementation; lint, strict schema validation, and all 34 unit tests pass. The isolated GNOME 51 Shell integration test also passes (51 assertions, Wayland windows). Interactive desktop checks and XWayland validation remain pending. The target environment is Ubuntu 26.10, GNOME Shell 51.0, Wayland, with a primary display of 3840×2400 at scale 2. Ubuntu Dock is enabled; Tiling Assistant is not enabled. Environment detection is not a compatibility guarantee. See [the manual checklist](tests/MANUAL.md).
+
+## Behavior and scope
+
+- Manages eligible normal windows on the **primary monitor and current workspace only**. Other monitors are not stage-managed.
+- Each top-level window is one stage; transient dialogs follow their parent rather than becoming separate stages. There are no persistent groups or multiwindow stage groups.
+- Switching stages minimizes other eligible windows and restores the selected window family. Window positions and sizes are not changed; this is not a tiling or layout manager.
+- The strip defaults to the **right** edge and excludes the active stage. It is an **overlay, not a strut**: it reserves no workspace area. Maximized windows may overlap it, and the strip may cover application content. Preferences can move it to the left.
+- Clicking a card activates its window. Next/previous shortcuts cycle in stable window-discovery order, not MRU order. Cycling while Stage Manager is off turns it on.
+- The strip hides in fullscreen. Overview and lock/greeter modes suspend stage management and restore extension-owned minimizations; management resumes afterward when enabled.
+- Sticky, always-on-top, skip-taskbar, override-redirect, and non-minimizable windows are excluded from top-level stages.
+- Inactive windows appear as frameless, slightly left-tilted previews with a small application badge, rather than rectangular cards or a solid strip background. Each preview follows its window's aspect ratio (very tall windows are fit within a bounded height); titles remain available to accessibility tools.
+- Visible windows use live compositor clones. When a visible window is first attached/painted and immediately before minimizing it, the extension attempts an in-memory snapshot for its inactive preview; windows already hidden use their last snapshot or an application-icon fallback. Snapshots are never written to disk, and hidden windows are never restored just to capture them. Snapshots are downsampled on the GPU to at most 640×896 pixels (never upscaled, aspect ratio preserved), enough for the largest card at 2× density. The logical retained-cache budget is 16 MiB / 20 images; a 3840×2400 source becomes a 640×400 texture (~1 MiB rather than ~35 MiB). This is resolution reduction, not JPEG/PNG encoding: encoded images would still need decoded textures to display. Mutter's capture API first creates a native-resolution temporary image, limited to 64 MiB per capture. Native/GJS references may delay release; these budgets are not a hard GPU-memory ceiling, and compositor/driver overhead is additional. **Live thumbnails are not guaranteed** for minimized windows. This is not an exact reproduction of macOS visuals or behavior.
+
+## Requirements and development commands
+
+Use GNOME Shell 51 with its `gnome-extensions` CLI, Node.js/npm, and GLib's `glib-compile-schemas`. The isolated Shell test additionally requires `gnome-shell-test-tool`, `dbus-run-session`, and GNU `timeout`. Preferences use GTK 4 and libadwaita in a separate process.
+
+From the project root:
+
+```sh
+npm install
+npm run check
+npm run pack
+npm run test:shell
+```
+
+- `npm run check`: ESLint, Node unit tests (`tests/*.test.js`), and a strict schema dry-run. This does not validate GNOME Shell behavior.
+- `npm run pack`: validates schemas and uses `gnome-extensions pack` to create `dist/stage-manager@phucvinh57.shell-extension.zip`, including `src/` and this README along with standard extension files. It **does not publish, install, or enable** the extension. `package.json` is also marked `private: true`.
+- `npm run test:shell`: first packs, then runs `tests/shellIntegration.js` through `gnome-shell-test-tool` in a headless, animation-disabled Shell. The test tool supplies temporary XDG homes; the script uses an isolated `dbus-run-session` and unsets `DISPLAY`/`WAYLAND_DISPLAY`, keeping it separate from the live desktop. It has a 120-second timeout, saves output to `dist/shell-test.log`, requires `STAGE_MANAGER_INTEGRATION_PASS`, and rejects selected Shell JavaScript error patterns. The integration entry point creates disposable test windows and asserts controller state directly; it does not drive physical keyboard input or exercise live desktop extensions.
+
+The Node tests cover the pure model and minimization ledger, not compositor behavior. See the status above and `tests/MANUAL.md` for validation limits. Do not use a test run to restart or kill the live desktop Shell.
+
+### Testing without logging out
+
+Run a disposable GNOME desktop from a terminal in your graphical session:
+
+```sh
+sudo apt install mutter-dev-bin  # Ubuntu, once
+npm run test:interactive
+```
+
+This packages the latest code, compiles its schema in a temporary directory,
+and starts GNOME Shell 51 with `--devkit`, a separate Wayland socket
+(`stage-manager-test`), private D-Bus, and temporary settings and extension
+files. It does not change your normal desktop. On Ubuntu, install the
+`mutter-dev-bin` package first; this machine does not currently have it, so
+interactive startup remains unverified here.
+
+1. Turn on Stage Manager using the panel switch **inside the test desktop**.
+2. Launch a fresh Wayland application from another terminal, for example:
+   ```sh
+   npm run test:app -- gtk4-demo
+   ```
+   Install `gtk4-demo` separately if needed, or substitute another Wayland app.
+3. After edits, close the test desktop and rerun `npm run test:interactive`.
+   Test settings are discarded when it exits. No logout required.
+
+The launchers are `tests/interactive.sh` and `tests/app.sh`. Both accept `--help`.
+Set `STAGE_MANAGER_TEST_DISPLAY` on both commands to use a different socket name.
+Use fresh application processes: single-instance apps may contact an existing
+process on your main desktop. The app launcher selects the test display, but does
+not join its private D-Bus session. These tests do not reload your main desktop's
+extension or validate coexistence with its other extensions.
+
+For automated, nonvisual testing, use `npm run test:shell` instead.
+
+### Validation coverage
+
+The isolated test covers stage activation/cycling, preexisting and explicit user minimization, delayed external restores, actual preview-card activation, workspace moves/switches, stale cards, Overview, fullscreen, sticky/always-on-top exclusions, active-window closure, native snapshot/icon fallback, a real GTK transient family, disable/re-enable restoration, and preferences launch. It uses Wayland clients. The modal test dialog cannot be independently minimized on this Mutter version, so that subcase is skipped.
+
+Physical shortcuts, XWayland, live Ubuntu Dock/Tiling Assistant interaction, lock/unlock, monitor hotplug/multimonitor behavior, fractional scaling, and visual/accessibility review still require manual validation. The headless session may emit systemd/accessibility/portal service warnings; JavaScript errors fail the test.
+
+## Local installation and first use
+
+Packaging alone changes nothing in your running session. To install the built archive for your user:
+
+```sh
+gnome-extensions install --force dist/stage-manager@phucvinh57.shell-extension.zip
+```
+
+For installation into your **normal desktop session**, **log out and log back in**, then explicitly enable the extension. For development without logging out, use the separate-instance workflow under [Testing without logging out](#testing-without-logging-out) instead; disabling/re-enabling does not reliably reload updated JavaScript in the running Wayland Shell.
+
+Enable after logging back in:
+
+```sh
+gnome-extensions enable stage-manager@phucvinh57
+```
+
+Enabling the extension installs its panel menu and shortcuts; stage management is separately opt-in. The schema default is **`stage-enabled=false`**. Open the Stage Manager panel icon and turn on its switch, or use the toggle shortcut. An existing saved setting can survive reinstalls; enabling the extension does not reset it to the default.
+
+Open preferences from the panel menu, or:
+
+```sh
+gnome-extensions prefs stage-manager@phucvinh57
+```
+
+### Settings and shortcuts
+
+Schema: `org.gnome.shell.extensions.stage-manager`, path `/org/gnome/shell/extensions/stage-manager/`.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `stage-enabled` | `false` | Enable stage management independently of extension loading |
+| `strip-edge` | `'right'` | `'left'` or `'right'` |
+| `preview-width` | `180` | Logical pixels; range 100–320 |
+| `animation-duration` | `160` | Milliseconds; range 0–400, 0 disables animation |
+| `toggle-shortcut` | `['<Super><Shift>space']` | Toggle Stage Manager |
+| `next-shortcut` | `['<Super><Shift>bracketright']` | Next eligible window |
+| `previous-shortcut` | `['<Super><Shift>bracketleft']` | Previous eligible window |
+
+Shortcuts operate in normal Shell mode. Preferences accept one GTK accelerator per action; press Enter or Apply to save. Invalid entries are marked red and are not saved. Clearing a field saves an empty array and disables that shortcut. Layout-specific key availability and conflicts with other bindings need testing.
+
+The strip is registered with Ctrl+Alt+Tab navigation; use standard Tab/arrows and Space/Enter for cards. New-card fades honor Shell animation/reduced-motion settings.
+
+## Safety and recovery
+
+The in-memory minimization ledger owns only minimizations performed by the extension. Turning Stage Manager off, or normally disabling the extension, restores owned windows and **preserves windows already minimized by the user**. Explicitly selecting a minimized card can restore that window. Independently user-minimized dialogs are intended to remain minimized.
+
+An external restore of an extension-minimized window is treated as stage-selection intent, even if focus arrives after the restore notification. Overview suspends management instead. Mutter/application transitions can still be ambiguous, especially with dialog coupling or competing extensions; validate native Alt+Tab and Ubuntu Dock paths before relying on them for work.
+
+To stop the extension in a usable desktop terminal:
+
+```sh
+gnome-extensions disable stage-manager@phucvinh57
+```
+
+If the desktop UI is unusable, switch to a TTY (for example Ctrl+Alt+F3), log in **as the same desktop user**, and target that user's existing session bus:
+
+```sh
+uid=$(id -u)
+XDG_RUNTIME_DIR="/run/user/$uid" \
+DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+  gnome-extensions disable stage-manager@phucvinh57
+```
+
+This requires the user bus and Shell to still respond. Do not run it as root or create a new private bus for this recovery command. Return to your graphical session using its VT key, which varies by setup. **Do not kill or replace the live Shell**, especially on Wayland.
+
+A Shell crash loses the in-memory ownership ledger. After recovery, windows left minimized may need to be restored manually through Overview or the dock; a later extension disable cannot reconstruct that ownership. There is no persistent group or recovery journal.
+
+## Icon-only preview troubleshooting
+
+- Open an affected window by clicking its preview, then switch to another stage. A window already minimized when capture began has no cached image; the extension never restores it merely to take a screenshot.
+- A native 3840×2400 RGBA8 capture temporarily uses about 35 MiB, then is GPU-downsampled to a ~1 MiB cached thumbnail. Install the updated package and log out/in to reload JavaScript on Wayland.
+- The 64 MiB temporary-input limit and 16 MiB retained-thumbnail budget remain finite. Very large windows, unavailable surfaces, failed GPU captures, or cache eviction can still show icons. Under cache pressure, eviction happens before capture and is not rolled back if capture fails. Disabling Stage Manager should restore only windows it minimized.
+
+## Architecture
+
+| File | Responsibility |
+| --- | --- |
+| `extension.js` | Extension lifecycle, panel switch, preferences action, keybindings |
+| `src/stageController.js` | Context/focus coordination, minimization, suspension, lifecycle cleanup |
+| `src/stageModel.js` | GI-independent selection, context, MRU fallback, stable cycling |
+| `src/minimizeLedger.js` | In-memory minimization ownership and restoration |
+| `src/windowTracker.js` | Window signals, eligibility, transient-family lookup |
+| `src/stageStrip.js` | Shell overlay layout, scrolling, keyboard access, animation policy |
+| `src/stagePreview.js` | Tilted window preview/app badge, accessible title, compositor clone, bounded in-memory snapshots, icon fallback, actor cleanup |
+| `prefs.js` | Separate GTK 4/libadwaita preferences process; no GTK in Shell UI modules |
+| `schemas/org.gnome.shell.extensions.stage-manager.gschema.xml` | Settings defaults, ranges, shortcuts |
+| `stylesheet.css`, `metadata.json` | Shell styling and GNOME 51 extension metadata |
+| `scripts/package.sh`, `scripts/test-shell.sh` | Local archive packaging and isolated Shell testing |
+| `tests/stageModel.test.js`, `tests/minimizeLedger.test.js` | Pure Node unit tests; no compositor validation |
+| `tests/interactive.sh`, `tests/app.sh` | Disposable interactive desktop and Wayland app launchers |
+| `tests/MANUAL.md` | Pending desktop regression and recovery checklist |
+
+## Deferred work
+
+Manual multiwindow grouping, persistent stage layouts, secondary-monitor management, and macOS-style window positioning are outside this first version. The next milestone should be interactive validation of the core workflow (especially XWayland, native shortcuts/dock activation, lock/unlock, hotplug, and scaling) before adding grouping or expanding supported Shell versions.
+
+## AI, personal use, and licensing
+
+Parts of this project were generated with AI for personal use. Review the code and understand its window-management effects before enabling it. Do **not** upload it to extensions.gnome.org (EGO) unless you understand JavaScript and can maintain the code. Packaging is local only, not submission or publication.
+
+No license file or explicit project license declaration was present in the inspected source. This README does not choose or grant a license; clarify licensing before redistribution or publication.
+
+### Why not ask Wayland to render an app into the preview?
+
+GNOME Shell's compositor is Mutter, and visible previews already use its live
+`Clutter.Clone` actors, reusing the window surface rather than repeatedly taking
+screenshots. Wayland does not provide a general request to make an arbitrary
+client render into another app's window at a chosen size. The compositor consumes
+buffers supplied by clients; minimized/hidden clients may stop producing them.
+A clone cannot guarantee fresh content once the original surface is unavailable.
+The extension therefore keeps a reduced-resolution last-visible image before
+minimizing, without restoring hidden windows or changing the app's own size.
+
+API references: [Mutter capture implementation](https://gitlab.gnome.org/GNOME/mutter/-/blob/51.0/src/compositor/meta-window-actor.c),
+[Wayland surface lifecycle](https://wayland.freedesktop.org/docs/html/apa.html#protocol-spec-wl_surface).

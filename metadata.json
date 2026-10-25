@@ -1,0 +1,8 @@
+{
+  "uuid": "stage-manager@phucvinh57",
+  "name": "Stage Manager",
+  "description": "Focus on one window at a time with a workspace-local strip of recent stages. Primary monitor only. Experimental, personal-use extension.",
+  "shell-version": ["51"],
+  "settings-schema": "org.gnome.shell.extensions.stage-manager",
+  "version": 1
+}

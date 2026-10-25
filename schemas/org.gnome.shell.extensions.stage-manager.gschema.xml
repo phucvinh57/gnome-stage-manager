@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.stage-manager" path="/org/gnome/shell/extensions/stage-manager/">
+    <key name="stage-enabled" type="b">
+      <default>false</default>
+      <summary>Enable Stage Manager</summary>
+      <description>Opt in to Stage Manager after enabling the extension. Only the primary monitor and current workspace are managed; each window is a separate stage without multiwindow grouping.</description>
+    </key>
+    <key name="strip-edge" type="s">
+      <choices>
+        <choice value="left"/>
+        <choice value="right"/>
+      </choices>
+      <default>'right'</default>
+      <summary>Preview strip edge</summary>
+      <description>The edge of the primary monitor used for window previews.</description>
+    </key>
+    <key name="preview-width" type="i">
+      <range min="100" max="320"/>
+      <default>180</default>
+      <summary>Preview width</summary>
+      <description>Window preview width in logical pixels.</description>
+    </key>
+    <key name="animation-duration" type="i">
+      <range min="0" max="400"/>
+      <default>160</default>
+      <summary>Animation duration</summary>
+      <description>Transition duration in milliseconds. Zero disables animation.</description>
+    </key>
+    <key name="toggle-shortcut" type="as">
+      <default>['&lt;Super&gt;&lt;Shift&gt;space']</default>
+      <summary>Toggle Stage Manager shortcut</summary>
+      <description>GTK accelerators to toggle Stage Manager. An empty array disables the shortcut.</description>
+    </key>
+    <key name="next-shortcut" type="as">
+      <default>['&lt;Super&gt;&lt;Shift&gt;bracketright']</default>
+      <summary>Next window shortcut</summary>
+      <description>GTK accelerators to activate the next window. An empty array disables the shortcut.</description>
+    </key>
+    <key name="previous-shortcut" type="as">
+      <default>['&lt;Super&gt;&lt;Shift&gt;bracketleft']</default>
+      <summary>Previous window shortcut</summary>
+      <description>GTK accelerators to activate the previous window. An empty array disables the shortcut.</description>
+    </key>
+  </schema>
+</schemalist>

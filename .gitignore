@@ -1,0 +1,4 @@
+node_modules/
+dist/
+schemas/gschemas.compiled
+*.log
