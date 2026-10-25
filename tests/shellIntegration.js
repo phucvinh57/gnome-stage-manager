@@ -3,6 +3,7 @@ import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as Scripting from 'resource:///org/gnome/shell/ui/scripting.js';
+import {maximizeFlags, maximizeWindow} from '../src/shellCompat.js';
 import {stageGeometry} from '../src/stageGeometry.js';
 
 export const METRICS = {};
@@ -48,9 +49,9 @@ export async function run() {
     assert(windows.length === 3, 'three test windows mapped');
     const [first, second, userMinimized] = windows;
     console.log(`Perf-helper client protocols: ${windows.map(window => `${window.get_client_type() === Meta.WindowClientType.WAYLAND ? 'Wayland' : 'X11/XWayland'} (${window.get_wm_class()})`).join(', ')}`);
-    second.maximize();
+    maximizeWindow(second);
     await settle();
-    const secondMaximized = second.get_maximize_flags();
+    const secondMaximized = maximizeFlags(second);
     assert(secondMaximized !== 0, 'test starts with a maximized existing window');
     userMinimized.minimize();
     Main.activateWindow(first);
@@ -81,11 +82,11 @@ export async function run() {
     await Scripting.sleep(700);
     await waitFor(() => matchesFrame(first), 'manual resize is reapplied');
     assert(matchesFrame(first), 'manual resize returns to the reserved frame');
-    first.maximize();
+    maximizeWindow(first);
     await Scripting.sleep(700);
-    await waitFor(() => !first.get_maximize_flags() && matchesFrame(first),
+    await waitFor(() => !maximizeFlags(first) && matchesFrame(first),
         'manual maximization is reapplied');
-    assert(!first.get_maximize_flags() && matchesFrame(first),
+    assert(!maximizeFlags(first) && matchesFrame(first),
         'manual maximization returns to the reserved frame');
     assert(!first.minimized && second.minimized, 'enabling keeps focused window and minimizes inactive window');
     assert(controller._ledger.has(second), 'inactive minimization is extension-owned');
@@ -160,7 +161,7 @@ export async function run() {
         const original = originalFrames.get(window);
         return ['x', 'y', 'width', 'height'].every(part => frame[part] === original[part]);
     }), 'toggle off restores original frames');
-    assert(second.get_maximize_flags() === secondMaximized,
+    assert(maximizeFlags(second) === secondMaximized,
         'toggle off restores the original maximize state');
     settings.set_boolean('stage-enabled', true);
     await settle();

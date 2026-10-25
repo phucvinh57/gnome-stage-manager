@@ -150,8 +150,8 @@ export class StagePreview {
      * snapshot, including on allocation failure. Replacement reserves enough
      * budget for both thumbnails until the replacement has been validated.
      * Native-resolution input is temporary and separately bounded to 64 MiB.
-     * GI: Meta.WindowActor.paint_to_content_full(null, RGBA_8888_PRE, null)
-     * returns nullable Clutter.Content and throws on GError (Mutter 51).
+     * New Mutter uses paint_to_content_full() for an explicit RGBA8 format;
+     * older Mutter uses paint_to_content(), whose default is RGBA8.
      */
     capture() {
         if (!this.actor || !this._window)
@@ -162,7 +162,7 @@ export class StagePreview {
         const source = this._source;
         if (!this._isVisibleSource())
             return false;
-        const scale = source.get_resource_scale();
+        const scale = source.get_resource_scale?.() ?? 1;
         // Mutter allocates (int)(ceil(actor size) * resource_scale). Round up
         // conservatively; forcing RGBA8 avoids an unbounded HDR bytes/pixel.
         const width = Math.ceil(Math.ceil(source.width) * scale);
@@ -186,7 +186,9 @@ export class StagePreview {
             oldest._syncThumbnail();
         }
         try {
-            const nativeContent = source.paint_to_content_full(null, Cogl.PixelFormat.RGBA_8888_PRE, null);
+            const nativeContent = source.paint_to_content_full
+                ? source.paint_to_content_full(null, Cogl.PixelFormat.RGBA_8888_PRE, null)
+                : source.paint_to_content?.(null);
             if (!nativeContent) {
                 this._syncThumbnail();
                 return false;

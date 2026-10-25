@@ -1,4 +1,5 @@
 import GLib from 'gi://GLib';
+import {maximizeFlags, restoreMaximizeFlags, unmaximizeWindow} from './shellCompat.js';
 const RESIZE_SETTLE_MS = 300;
 
 function sameRect(a, b) {
@@ -48,7 +49,7 @@ export class WindowArranger {
         if (!state) {
             state = {
                 original: copyRect(window.get_frame_rect()),
-                maximized: window.get_maximize_flags(),
+                maximized: maximizeFlags(window),
                 monitor: window.get_monitor(),
                 signals: [],
                 timeoutId: 0,
@@ -83,21 +84,21 @@ export class WindowArranger {
             state.target = {...target};
             this._cancelTimeout(state);
         }
-        if (state.constrained && window.get_maximize_flags() && state.maxAttempts < 2) {
+        if (state.constrained && maximizeFlags(window) && state.maxAttempts < 2) {
             // Mutter can finish maximizing after the previous resize settles.
             state.constrained = false;
             state.requested = null;
         }
-        if (window.get_maximize_flags() && state.maxAttempts >= 2 && !state.timeoutId) {
+        if (maximizeFlags(window) && state.maxAttempts >= 2 && !state.timeoutId) {
             state.constrained = true;
             return;
         }
         if (state.timeoutId || state.constrained ||
-            (window.get_maximize_flags() === 0 && sameRect(window.get_frame_rect(), target)))
+            (maximizeFlags(window) === 0 && sameRect(window.get_frame_rect(), target)))
             return;
         if (state.requested === key)
             return;
-        const wasMaximized = window.get_maximize_flags() !== 0;
+        const wasMaximized = maximizeFlags(window) !== 0;
         if ((!window.allows_resize() || !window.allows_move()) && !wasMaximized) {
             state.constrained = true;
             return;
@@ -109,7 +110,7 @@ export class WindowArranger {
         state.timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, RESIZE_SETTLE_MS, () => {
             state.timeoutId = 0;
             state.settled = copyRect(window.get_frame_rect());
-            if (window.get_maximize_flags() || state.retryAfterPending) {
+            if (maximizeFlags(window) || state.retryAfterPending) {
                 // A user action during the pending client resize is a new
                 // request, rather than evidence of a size-constrained client.
                 state.requested = null;
@@ -124,7 +125,7 @@ export class WindowArranger {
         });
         if (wasMaximized) {
             state.maxAttempts++;
-            window.unmaximize();
+            unmaximizeWindow(window);
         }
         window.move_resize_frame(false, target.x, target.y, target.width, target.height);
         this._onChanged();
@@ -146,7 +147,7 @@ export class WindowArranger {
             return;
         const current = copyRect(window.get_frame_rect());
         if (state.constrained && state.settled && sameRect(current, state.settled) &&
-            window.get_maximize_flags() === 0)
+            maximizeFlags(window) === 0)
             return;
         state.requested = null;
         state.constrained = false;
@@ -184,12 +185,12 @@ export class WindowArranger {
         const restoreFrame = () => {
             if (!window.get_workspace())
                 return;
-            if (window.get_maximize_flags())
-                window.unmaximize();
+            if (maximizeFlags(window))
+                unmaximizeWindow(window);
             window.move_resize_frame(false, state.original.x, state.original.y,
                 state.original.width, state.original.height);
             if (state.maximized)
-                window.set_maximize_flags(state.maximized);
+                restoreMaximizeFlags(window, state.maximized);
         };
         if (!wasFullscreen) {
             restoreFrame();
@@ -211,7 +212,7 @@ export class WindowArranger {
                 if (!window.get_workspace())
                     return GLib.SOURCE_REMOVE;
                 const settled = sameRect(window.get_frame_rect(), state.original) &&
-                    window.get_maximize_flags() === state.maximized;
+                    maximizeFlags(window) === state.maximized;
                 if (!settled && frameChecks++ < 10)
                     return GLib.SOURCE_CONTINUE;
                 window.make_fullscreen();

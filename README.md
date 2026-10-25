@@ -1,8 +1,19 @@
-# Stage Manager for GNOME 51
+# Stage Manager for GNOME 46–51
 
 An experimental, personal-use GNOME Shell extension that focuses on one window at a time and shows other windows in a preview strip. Extension UUID: `stage-manager@phucvinh57`.
 
-**Status:** experimental implementation; lint, unit tests, and strict schema validation pass. The isolated GNOME 51 Shell integration test passes (64 assertions, Wayland windows). Interactive desktop checks and XWayland validation remain pending. The target environment is Ubuntu 26.10, GNOME Shell 51.0, Wayland, with a primary display of 3840×2400 at scale 2. Ubuntu Dock is enabled; Tiling Assistant is not enabled. Environment detection is not a compatibility guarantee. See [the manual checklist](tests/MANUAL.md).
+**Status:** experimental implementation for the GNOME Shell versions shipped with Ubuntu 24.04 through 26.10 on Wayland. Lint, unit tests, and strict schema validation pass. The isolated GNOME 51 Shell integration test passes (64 assertions, Wayland windows). GNOME 46–50 and interactive desktop behavior still need runtime validation; declaring those versions in `metadata.json` does not prove them. XWayland validation is also pending. The tested environment is Ubuntu 26.10, GNOME Shell 51.0, Wayland, with a primary display of 3840×2400 at scale 2. See [the manual checklist](tests/MANUAL.md).
+
+| Ubuntu | GNOME Shell | Validation here |
+| --- | --- | --- |
+| 24.04 LTS | 46 | Compatibility code and unit tests; runtime pending |
+| 24.10 | 47 | Compatibility code and unit tests; runtime pending |
+| 25.04 | 48 | Compatibility code and unit tests; runtime pending |
+| 25.10 | 49 | Compatibility code and unit tests; runtime pending |
+| 26.04 LTS | 50 | Compatibility code and unit tests; runtime pending |
+| 26.10 | 51 | Isolated Wayland Shell test passed; interactive checks pending |
+
+Future Ubuntu/GNOME releases need review before being added to `shell-version`.
 
 ## Behavior and scope
 
@@ -19,7 +30,7 @@ An experimental, personal-use GNOME Shell extension that focuses on one window a
 
 ## Requirements and development commands
 
-Use GNOME Shell 51 with its `gnome-extensions` CLI, Node.js/npm, and GLib's `glib-compile-schemas`. The isolated Shell test additionally requires `gnome-shell-test-tool`, `dbus-run-session`, and GNU `timeout`. Preferences use GTK 4 and libadwaita in a separate process.
+Use GNOME Shell 46–51 with its `gnome-extensions` CLI, Node.js/npm, and GLib's `glib-compile-schemas`. The isolated Shell test additionally requires `gnome-shell-test-tool`, `dbus-run-session`, and GNU `timeout`. Preferences use GTK 4 and libadwaita in a separate process.
 
 From the project root:
 
@@ -41,14 +52,20 @@ The Node tests cover the pure model, minimization ledger, and geometry calculati
 Run a disposable GNOME desktop from a terminal in your graphical session:
 
 ```sh
-sudo apt install mutter-dev-bin  # Ubuntu, once
 npm run test:interactive
 ```
 
+On GNOME 49–51, install Ubuntu's `mutter-dev-bin` package first:
+
+```sh
+sudo apt install mutter-dev-bin
+```
+
 This packages the latest code, compiles its schema in a temporary directory,
-and starts GNOME Shell 51 with `--devkit`, a separate Wayland socket
+and starts the installed GNOME Shell with `--nested --wayland` on versions
+46–48 or `--devkit` on versions 49–51, a separate Wayland socket
 (`stage-manager-test`), private D-Bus, and temporary settings and extension
-files. It does not change your normal desktop. On Ubuntu, install the
+files. It does not change your normal desktop. On GNOME 49–51, install the
 `mutter-dev-bin` package first; this machine does not currently have it, so
 interactive startup remains unverified here.
 
@@ -162,13 +179,13 @@ A Shell crash loses the in-memory ownership ledger. After recovery, windows left
 | `src/minimizeLedger.js` | In-memory minimization ownership and restoration |
 | `src/windowTracker.js` | Window signals, eligibility, transient-family lookup |
 | `src/stageStrip.js` | Shell overlay layout, scrolling, keyboard access, animation policy |
-| `src/stageGeometry.js`, `src/windowArranger.js` | Shared work-area geometry and managed window frame lifecycle |
+| `src/stageGeometry.js`, `src/windowArranger.js`, `src/shellCompat.js` | Shared work-area geometry, managed window frame lifecycle, and version-specific Mutter calls |
 | `src/stagePreview.js` | Tilted window preview/app badge, accessible title, compositor clone, bounded in-memory snapshots, icon fallback, actor cleanup |
 | `prefs.js` | Separate GTK 4/libadwaita preferences process; no GTK in Shell UI modules |
 | `schemas/org.gnome.shell.extensions.stage-manager.gschema.xml` | Settings defaults, ranges, shortcuts |
-| `stylesheet.css`, `metadata.json` | Shell styling and GNOME 51 extension metadata |
+| `stylesheet.css`, `metadata.json` | Shell styling and GNOME 46–51 extension metadata |
 | `scripts/package.sh`, `scripts/test-shell.sh` | Local archive packaging and isolated Shell testing |
-| `tests/stageModel.test.js`, `tests/minimizeLedger.test.js`, `tests/stageGeometry.test.js` | Pure Node unit tests; no compositor validation |
+| `tests/*.test.js` | Pure Node unit tests, including maximize API compatibility; no compositor validation |
 | `tests/interactive.sh`, `tests/app.sh` | Disposable interactive desktop and Wayland app launchers |
 | `tests/MANUAL.md` | Pending desktop regression and recovery checklist |
 

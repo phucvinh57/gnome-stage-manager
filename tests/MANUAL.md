@@ -1,17 +1,18 @@
-# Manual validation — GNOME 51 Stage Manager
+# Manual validation — GNOME 46–51 Stage Manager
 
-**Interactive tests are pending.** Lint, Node unit tests, strict schema validation, and the isolated Shell test passed on 2026-10-25. Unchecked items below remain planned checks, not passed desktop results. The verified environment is Ubuntu 26.10 / GNOME Shell 51.0 / Wayland, primary display 3840×2400 at scale 2, Ubuntu Dock enabled, Tiling Assistant not enabled. No extension compatibility result follows from that environment verification.
+**Interactive tests are pending.** Lint, Node unit tests, strict schema validation, and the isolated GNOME 51 Shell test passed on 2026-10-25. Runtime tests on GNOME 46–50 remain pending. The verified environment is Ubuntu 26.10 / GNOME Shell 51.0 / Wayland, primary display 3840×2400 at scale 2, Ubuntu Dock enabled, Tiling Assistant not enabled. Unchecked items below remain planned checks, not passed desktop results.
 
 For every run, record date, source revision/snapshot, Shell version, session type, monitor geometry/scaling, enabled extensions, steps, actual results, and relevant logs. Mark items only after observing them; note unavailable hardware/features as not tested rather than passed. Use disposable windows and save work first.
 
 ## Preparation and automated checks
 
 - [ ] Confirm `gnome-shell --version`, Ubuntu release, Wayland session, primary monitor and scaling; record any differences from the environment above.
-- [x] Run `npm run check`: exit 0 on 2026-10-25; ESLint, four Node test files, and strict schema dry-run passed. This is not desktop integration validation.
+- [x] Run `npm run check`: exit 0 on 2026-10-25; ESLint, five Node test files, and strict schema dry-run passed. This is not desktop integration validation.
+- [ ] Repeat automated and interactive checks on Ubuntu 24.04/GNOME 46, 24.10/GNOME 47, 25.04/GNOME 48, 25.10/GNOME 49, and 26.04/GNOME 50 Wayland sessions. Check maximization restoration, thumbnail capture, animation preference, and preferences launch on each release.
 - [x] Packaging creates `dist/stage-manager@phucvinh57.shell-extension.zip` without live installation/enabling or publication (2026-10-25).
 - [x] `tests/shellIntegration.js` is supplied for isolated controller/compositor checks; passing it does not replace the interactive matrix below.
 - [x] `npm run test:shell`: exit 0, 64 assertions, `STAGE_MANAGER_INTEGRATION_PASS`, no JavaScript errors (2026-10-25). Log: `dist/shell-test.log`. Not proof of full interactive coverage.
-- [ ] Install Ubuntu's `mutter-dev-bin`, then run `npm run test:interactive` for a disposable visual Shell. The launcher now compiles schemas in its temporary extension directory; startup was blocked here by the missing development kit.
+- [ ] Run `npm run test:interactive` for a disposable visual Shell. Install Ubuntu's `mutter-dev-bin` on GNOME 49–51; GNOME 46–48 use nested Wayland mode. The launcher compiles schemas in its temporary extension directory; startup was blocked here by the missing development kit.
 - [x] Shell testing used temporary XDG/runtime directories and a private D-Bus session, with invoking display variables unset; no live installation/enabling or live settings edits.
 - [ ] Install locally with `gnome-extensions install --force dist/stage-manager@phucvinh57.shell-extension.zip`, log out/in, then run `gnome-extensions enable stage-manager@phucvinh57`. Confirm these are explicit steps, not side effects of packing.
 - [ ] With fresh settings, confirm the extension loads with `stage-enabled=false`, the panel switch is off, and windows remain untouched. On an existing profile, record any retained setting instead of assuming a fresh default.

@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 if [[ "${1:-}" == --help ]]; then
     echo 'Usage: npm run test:interactive'
     echo 'Optional: STAGE_MANAGER_TEST_DISPLAY=stage-manager-test'
-    echo 'Requires the mutter-dev-bin package on Ubuntu.'
+    echo 'GNOME 49+: requires the mutter-dev-bin package on Ubuntu.'
     exit 0
 fi
 if (( $# )); then
@@ -16,9 +16,19 @@ fi
 for tool in gnome-shell gnome-extensions glib-compile-schemas dbus-run-session gsettings unzip; do
     command -v "$tool" >/dev/null || { echo "Missing dependency: $tool" >&2; exit 1; }
 done
-if [[ ! -x /usr/libexec/mutter-devkit ]]; then
-    echo 'Missing Mutter development kit: install the Ubuntu package mutter-dev-bin.' >&2
+shell_major=$(gnome-shell --version | awk '{split($3, version, "."); print version[1]}')
+if [[ ! "$shell_major" =~ ^[0-9]+$ ]] || (( shell_major < 46 || shell_major > 51 )); then
+    echo 'This launcher supports GNOME Shell 46–51.' >&2
     exit 1
+fi
+if (( shell_major >= 49 )); then
+    if [[ ! -x /usr/libexec/mutter-devkit ]]; then
+        echo 'Missing Mutter development kit: install the Ubuntu package mutter-dev-bin.' >&2
+        exit 1
+    fi
+    shell_args=(--devkit)
+else
+    shell_args=(--nested --wayland)
 fi
 : "${XDG_RUNTIME_DIR:?Run this from a terminal in your graphical session}"
 if [[ -z "${WAYLAND_DISPLAY:-}" && -z "${DISPLAY:-}" ]]; then
@@ -54,5 +64,7 @@ echo 'Close the test desktop, then rerun this command after edits.'
 # Only the private bus and temporary XDG homes are passed to the new Shell.
 dbus-run-session -- bash -eu -c '
     gsettings set org.gnome.shell enabled-extensions "[\"stage-manager@phucvinh57\"]"
-    exec gnome-shell --devkit --wayland-display="$1"
-' bash "$socket"
+    socket=$1
+    shift
+    exec gnome-shell "$@" --wayland-display="$socket"
+' bash "$socket" "${shell_args[@]}"

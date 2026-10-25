@@ -2,9 +2,11 @@ import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as Config from 'resource:///org/gnome/shell/misc/config.js';
 
 import {StagePreview} from './stagePreview.js';
 import {stageGeometry} from './stageGeometry.js';
+import {supportsReducedMotion} from './shellCompat.js';
 
 // Transparent breathing room for the tilted previews and focus outline.
 const HORIZONTAL_CHROME = 32;
@@ -30,9 +32,12 @@ export class StageStrip {
         this._stSettings = St.Settings.get();
         this._themeContext = St.ThemeContext.get_for_stage(global.stage);
         this._previewWidth = 0;
+        const shellMajor = Number.parseInt(Config.PACKAGE_VERSION, 10);
         this._list = new St.BoxLayout({
             style_class: 'stage-manager-list',
-            orientation: Clutter.Orientation.VERTICAL,
+            ...(shellMajor >= 48
+                ? {orientation: Clutter.Orientation.VERTICAL}
+                : {vertical: true}),
             x_expand: true,
         });
         this.actor = new St.ScrollView({
@@ -83,7 +88,8 @@ export class StageStrip {
             }
         };
         this._connect(this._stSettings, 'notify::enable-animations', finishAnimations);
-        this._connect(this._stSettings, 'notify::reduced-motion', finishAnimations);
+        if (supportsReducedMotion(this._stSettings))
+            this._connect(this._stSettings, 'notify::reduced-motion', finishAnimations);
         this._connect(settings, 'changed::animation-duration', finishAnimations);
         this._layout();
     }
@@ -93,7 +99,8 @@ export class StageStrip {
     }
 
     _animationDuration() {
-        if (!this._stSettings.enable_animations || this._stSettings.reduced_motion === St.ReducedMotion.REDUCE)
+        if (!this._stSettings.enable_animations ||
+            (St.ReducedMotion && this._stSettings.reduced_motion === St.ReducedMotion.REDUCE))
             return 0;
         return Math.max(0, this._settings.get_int('animation-duration'));
     }
