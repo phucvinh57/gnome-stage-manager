@@ -7,16 +7,16 @@ import {SourceTextModule, SyntheticModule} from 'node:vm';
 import * as previewSource from '../src/previewSource.js';
 
 // Exercise the Shell classes without starting or modifying a desktop session.
-async function loadShellClass(path, name) {
+async function loadShellClass(path, name, overrides = {}) {
     const module = new SourceTextModule(await readFile(new URL(path, import.meta.url), 'utf8'));
     await module.link(specifier => {
-        const exports = specifier === './previewSource.js' ? previewSource : {
+        const exports = overrides[specifier] ?? (specifier === './previewSource.js' ? previewSource : {
             default: {}, StageModel: class {}, MinimizeLedger: class {},
             WindowTracker: class {}, StageStrip: class {}, WindowArranger: class {},
             stageGeometry() {}, previewTransform() {}, snapshotSize() {},
             RoundedPreviewEffect: class {},
             maximizeFlags() {}, unmaximizeWindow() {},
-        };
+        });
         return new SyntheticModule(Object.keys(exports), function () {
             for (const [key, value] of Object.entries(exports))
                 this.setExport(key, value);
@@ -30,6 +30,39 @@ const StagePreview = await loadShellClass('../src/stagePreview.js', 'StagePrevie
 const StageController = await loadShellClass('../src/stageController.js', 'StageController');
 const WindowTracker = await loadShellClass('../src/windowTracker.js', 'WindowTracker');
 const WindowArranger = await loadShellClass('../src/windowArranger.js', 'WindowArranger');
+
+test('preview masks the unclipped surface outside the hard content crop', async () => {
+    class Actor {
+        constructor(properties = {}) {
+            Object.assign(this, properties);
+            this.children = [];
+            this.effects = [];
+        }
+
+        set_child(child) { this.add_child(child); }
+        add_child(child) { this.children.push(child); }
+        add_effect(effect) { this.effects.push(effect); }
+        set_pivot_point() {}
+        connect() { return 1; }
+    }
+    const Preview = await loadShellClass('../src/stagePreview.js', 'StagePreview', {
+        'gi://St': {default: {Button: Actor, Widget: Actor, Icon: Actor}},
+        'gi://Clutter': {default: {BinLayout: class {}, ActorAlign: {}}},
+    });
+    class ConstructionPreview extends Preview {
+        _updateTitle() {}
+        _syncThumbnail() {}
+        refresh() {}
+    }
+    const preview = new ConstructionPreview({id: 'test', window: {connect() { return 1; }}});
+    // Both live clones and snapshots share this crop. The final mask must be
+    // outside it, so Clutter cannot stencil away partial edge coverage.
+    assert.equal(preview._thumbnail.clip_to_allocation, true);
+    assert.equal(preview._surface.clip_to_allocation, false);
+    assert.ok(preview._surface.children.includes(preview._thumbnail));
+    assert.deepEqual(preview._thumbnail.effects, []);
+    assert.deepEqual(preview._surface.effects, [preview._roundedEffect]);
+});
 
 function source(overrides = {}) {
     return {

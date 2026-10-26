@@ -80,7 +80,7 @@ export class StagePreview {
             y_align: Clutter.ActorAlign.START,
         });
         this._roundedEffect = new RoundedPreviewEffect();
-        this._thumbnail.add_effect(this._roundedEffect);
+        this._surface.add_effect(this._roundedEffect);
         // Shear only the window surface; the app badge stays upright.
         this._surface.add_child(this._thumbnail);
         this._icon = new St.Icon({

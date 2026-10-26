@@ -8,16 +8,20 @@ uniform vec2 preview_size;
 uniform float preview_radius;
 `;
 
-// Mask the complete cropped viewport, including clones and cached images,
-// before the parent shears it. Multiply all channels for premultiplied alpha.
-// Keep the antialiasing ramp inside the texture: an opaque boundary texel is
-// hard-clipped by the offscreen allocation and produces steps after shearing.
-// A transparent outer half-pixel lets filtering smooth the straight edges too.
+// Clutter enlarges integer, actor-local paint bounds by three logical pixels:
+// two before the origin and one after the far edge. The surface has integer
+// dimensions and a clipped child, so its offscreen always has these bounds.
+// Map the padded texture back to actor coordinates before masking it. Treating
+// the entire texture as preview_size leaves the bottom/right edges unmasked.
+// Run on the unclipped surface so its child's hard crop cannot cut off the AA.
 const CODE = `
-vec2 p = cogl_tex_coord_in[0].st * preview_size;
+vec2 p = cogl_tex_coord_in[0].st * (preview_size + vec2(3.0)) - vec2(2.0);
 vec2 q = abs(p - preview_size * 0.5) - (preview_size * 0.5 - preview_radius);
 float distance = length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - preview_radius;
-cogl_color_out *= 1.0 - smoothstep(-1.5, -0.5, distance);
+// Evaluate coverage in screen pixels, after shear and monitor scaling. Keep
+// the ramp inside the crop: there is no source content outside its boundary.
+float aa = max(fwidth(distance), 0.0001);
+cogl_color_out *= 1.0 - smoothstep(-aa, 0.0, distance);
 `;
 
 // Shell 51 moved the effect and changed both snippet and uniform APIs.
