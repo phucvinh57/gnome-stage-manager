@@ -5,7 +5,7 @@ Stage Manager is experimental. It targets GNOME Shell 46–51 on Wayland; runtim
 ## Requirements
 
 - GNOME Shell with the `gnome-extensions` command
-- Node.js and npm
+- Bun and Node.js (for the test runner)
 - GLib’s `glib-compile-schemas` command
 
 ## Build and install
@@ -13,13 +13,13 @@ Stage Manager is experimental. It targets GNOME Shell 46–51 on Wayland; runtim
 From the repository root:
 
 ```sh
-npm install
-npm run check
-npm test
-npm run pack
+bun install --frozen-lockfile
+bun run check
+bun run test
+bun run pack
 ```
 
-`npm run pack` builds the ZIP in `dist/` and installs it for your user. It does not enable or publish the extension. To build without installing, run `bash scripts/package.sh` instead.
+`bun run pack` builds the ZIP in `dist/` and installs it for your user. It does not enable or publish the extension. To build without installing, run `bash scripts/package.sh` instead.
 
 On Wayland, **log out and log back in** after installing or updating. Toggling the extension does not reliably reload its JavaScript.
 

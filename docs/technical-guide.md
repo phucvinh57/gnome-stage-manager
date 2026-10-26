@@ -21,21 +21,24 @@ Future Ubuntu/GNOME releases need review before being added to `shell-version`.
 
 ## Requirements and development commands
 
-Use GNOME Shell 46–51 with its `gnome-extensions` CLI, Node.js/npm, and GLib's `glib-compile-schemas`. Preferences use GTK 4 and libadwaita in a separate process.
+Use GNOME Shell 46–51 with its `gnome-extensions` CLI, Bun, Node.js for the test runner, and GLib's `glib-compile-schemas`. Preferences use GTK 4 and libadwaita in a separate process.
 
 From the project root:
 
 ```sh
-npm install
-npm run check
-npm run pack
+bun install --frozen-lockfile
+bun run check
+bun run test
+bun run pack
 ```
 
-- `npm run check`: ESLint and a strict schema dry-run. This does not validate GNOME Shell behavior.
-- `npm run pack`: validates schemas and uses `gnome-extensions pack` to create `dist/stage-manager@phucvinh57.shell-extension.zip`, including `src/` and the root README along with standard extension files. The packaging script itself does not install or enable the extension. The current `npm run pack` command also installs the archive for the current user; it does not enable or publish it. `package.json` is also marked `private: true`.
+- `bun run check`: ESLint and a strict schema dry-run. This does not validate GNOME Shell behavior.
+- `bun run test`: runs the Node.js test suite.
+- `bun run pack`: validates schemas and uses `gnome-extensions pack` to create `dist/stage-manager@phucvinh57.shell-extension.zip`, including `src/` and the root README along with standard extension files. It then installs the archive for the current user; it does not enable or publish it. Run `bash scripts/package.sh` to build without installing. `package.json` is marked `private: true`.
+
 ## Local installation and first use
 
-`npm run pack` builds and installs the archive. If you used `bash scripts/package.sh` to build only, install it for your user with:
+`bun run pack` builds and installs the archive. If you used `bash scripts/package.sh` to build only, install it for your user with:
 
 ```sh
 gnome-extensions install --force dist/stage-manager@phucvinh57.shell-extension.zip

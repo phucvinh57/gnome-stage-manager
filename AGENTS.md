@@ -14,12 +14,12 @@ under `docs/`. The live desktop demo lives in `docs/media/`.
 
 ## Build, Test, and Development Commands
 
-- `npm install`: install extension development dependencies.
-- `npm run lint`: run ESLint on JavaScript.
-- `npm run check`: lint and validate schemas with GLib’s strict dry-run.
-- `npm test`: run Node’s test runner with experimental VM modules enabled.
+- `bun install --frozen-lockfile`: install extension development dependencies.
+- `bun run lint`: run ESLint on JavaScript.
+- `bun run check`: lint and validate schemas with GLib’s strict dry-run.
+- `bun run test`: run Node’s test runner with experimental VM modules enabled.
 - `bash scripts/package.sh`: build the extension ZIP without installing.
-- `npm run pack`: build and install the ZIP for the current user; does not enable it.
+- `bun run pack`: build and install the ZIP for the current user; does not enable it.
 
 After installation or updates on Wayland, log out and back in before enabling
 the extension. See `docs/installation.md`.
@@ -37,7 +37,7 @@ Keep GTK imports out of Shell UI modules and isolate pure logic where practical.
 Use `node:test` and `node:assert/strict`; name files `tests/*.test.js`.
 Add focused regression tests for changed behavior, especially geometry,
 selection, preview lifecycle, and minimization ownership. No numeric coverage
-threshold is configured. Run `npm run check` and `npm test` before submitting.
+threshold is configured. Run `bun run check` and `bun run test` before submitting.
 Mocked tests do not validate desktop behavior: report manual GNOME/Wayland
 checks and the Shell version for window-management changes.
 
