@@ -4,9 +4,7 @@
 
 Stage Manager keeps your current window front and center, with previews of your other windows along the edge of the screen. Click a preview to switch tasks without a pile of overlapping windows.
 
-<video controls width="960" src="docs/media/demo.mp4">
-  Watch the <a href="docs/media/demo.mp4">live desktop demo</a>.
-</video>
+https://github.com/user-attachments/assets/cc03ed1e-8604-45e4-bb8a-e4b29f23faf9
 
 ## What it does
 
