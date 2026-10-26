@@ -1,3 +1,8 @@
+.stage-manager-indicator {
+    -natural-hpadding: 6px;
+    -minimum-hpadding: 4px;
+}
+
 /* Frameless window previews. Only keyboard focus draws an outline; the strip
  * itself stays transparent so the desktop shows between individual windows. */
 .stage-manager-strip {

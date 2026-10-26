@@ -20,8 +20,9 @@ export default class StageManagerExtension extends Extension {
         try {
             this._controller.start();
             this._indicator = new PanelMenu.Button(0, 'Stage Manager');
+            this._indicator.add_style_class_name('stage-manager-indicator');
             this._indicator.add_child(new St.Icon({
-                icon_name: 'view-dual-symbolic',
+                icon_name: 'focus-windows-symbolic',
                 style_class: 'system-status-icon',
             }));
             this._toggleItem = new PopupMenu.PopupSwitchMenuItem(

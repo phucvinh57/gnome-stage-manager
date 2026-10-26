@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "studio": "remotion studio src/index.jsx",
-    "render": "remotion render src/index.jsx StageManager ../media/stage-manager-demo.mp4 --codec=h264 --crf=18 --pixel-format=yuv420p --concurrency=2"
+    "render": "remotion render src/index.jsx StageManager build/stage-manager-demo.mp4 --codec=h264 --crf=18 --pixel-format=yuv420p --concurrency=2"
   },
   "dependencies": {
     "@remotion/cli": "4.0.538",

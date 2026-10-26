@@ -6,9 +6,10 @@ not a GNOME session recording or a runtime compatibility test.
 
 ## Output
 
-- Video: [`../media/stage-manager-demo.mp4`](../media/stage-manager-demo.mp4)
+- README preview: [`../media/stage-manager-demo.gif`](../media/stage-manager-demo.gif)
 - Composition: `StageManager`, 1920 × 1080, 30 fps, 270 frames (9 seconds)
-- Format: silent H.264 MP4, YUV 4:2:0, with on-screen explanations
+- Preview format: looping GIF, 960 × 540, 12 fps, with on-screen explanations
+- Intermediate render: silent H.264 MP4 in the ignored `build/` directory
 
 All artwork is drawn in React/CSS/SVG. There are no external images, remote font
 requests, recordings, or audio assets. The composition uses Ubuntu when installed
@@ -36,6 +37,18 @@ npm --prefix docs/demo run render -- --browser-executable=/usr/bin/google-chrome
 See Remotion’s [composition fundamentals](https://www.remotion.dev/docs/idea)
 and [render CLI reference](https://www.remotion.dev/docs/cli/render).
 
+The render command creates `docs/demo/build/stage-manager-demo.mp4` as a local
+intermediate file. Generate the README preview with FFmpeg:
+
+```sh
+ffmpeg -y -i docs/demo/build/stage-manager-demo.mp4 \
+  -filter_complex '[0:v]fps=12,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3' \
+  -loop 0 docs/media/stage-manager-demo.gif
+```
+
+Run this command from the repository root. Only the GIF is published; the
+intermediate MP4 can be deleted after conversion.
+
 ## Storyboard
 
 | Time | Action |
@@ -49,30 +62,9 @@ The animation compresses interaction timing and simplifies the Shell UI. Actual
 visuals depend on your theme, settings, and applications. The right-hand strip follows the extension’s default layout. Preview cards exclude the active
 window and use a slight mirrored shear and app badges.
 
-## Git LFS
+## Publishing the preview
 
-MP4 files in `docs/media/` use Git LFS via the root `.gitattributes`.
-Install Git LFS before cloning or updating the video:
-
-```sh
-git lfs install --local
-git lfs pull
-```
-
-After rebuilding, stage the video normally; the LFS clean filter stores its bytes
-in LFS and puts a small pointer in Git:
-
-```sh
-git add .gitattributes docs/media/stage-manager-demo.mp4
-git lfs status
-git show :docs/media/stage-manager-demo.mp4
-```
-
-The last command should print a three-line LFS pointer, not binary video data.
-The root README embeds the video with an HTML `<video>` element using GitHub’s
-LFS media URL. That URL becomes available after pushing the video and LFS object
-to `main`. Markdown viewers must support HTML video elements for inline playback.
-GitHub’s README renderer requires a GitHub-uploaded video attachment for inline
-playback; replace the embed with its attachment URL when publishing there.
-A Git push with the LFS hook uploads the video; no separate hosting service is
-needed for viewers that support HTML video.
+The root README displays the GIF as a standard Markdown image. Commit
+`docs/media/stage-manager-demo.gif` in regular Git so the inline preview does not
+depend on LFS media hosting. The intermediate MP4 is ignored and is not needed
+to view the demo.
