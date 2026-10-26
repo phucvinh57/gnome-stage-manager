@@ -136,9 +136,8 @@ Paths in the table are relative to the repository root.
 | `stylesheet.css`, `metadata.json` | Shell styling and GNOME 46–51 extension metadata |
 | `scripts/package.sh` | Local archive packaging |
 
-The animated demo has its own Remotion project in [`demo/`](demo/README.md).
-Its dependencies are separate from the extension, and rendered video files in
-`docs/media/` are stored with Git LFS.
+The [live desktop demo](media/demo.mp4) is a recording of the extension running
+on GNOME. The MP4 in `docs/media/` is stored with Git LFS.
 
 ## Deferred work
 

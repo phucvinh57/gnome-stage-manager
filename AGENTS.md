@@ -10,8 +10,7 @@ live in `schemas/`; Shell styling lives in `stylesheet.css`.
 
 `tests/` contains Node.js tests. `scripts/package.sh` builds archives into
 ignored `dist/`. Keep the root README user-facing and technical documentation
-under `docs/`. The independent Remotion project lives in `docs/demo/`, with
-rendered assets in `docs/media/`.
+under `docs/`. The live desktop demo lives in `docs/media/`.
 
 ## Build, Test, and Development Commands
 
@@ -21,8 +20,6 @@ rendered assets in `docs/media/`.
 - `npm test`: run Node’s test runner with experimental VM modules enabled.
 - `bash scripts/package.sh`: build the extension ZIP without installing.
 - `npm run pack`: build and install the ZIP for the current user; does not enable it.
-- `npm --prefix docs/demo ci`: install locked demo dependencies.
-- `npm --prefix docs/demo run render`: regenerate the demo MP4.
 
 After installation or updates on Wayland, log out and back in before enabling
 the extension. See `docs/installation.md`.

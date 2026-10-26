@@ -4,9 +4,9 @@
 
 Stage Manager keeps your current window front and center, with previews of your other windows along the edge of the screen. Click a preview to switch tasks without a pile of overlapping windows.
 
-![Animated demo of Stage Manager switching between windows](docs/media/stage-manager-demo.gif)
-
-*Animated walkthrough made with Remotion; an illustration of the extension’s behavior, not a desktop recording.*
+<video controls width="960" src="docs/media/demo.mp4">
+  Watch the <a href="docs/media/demo.mp4">live desktop demo</a>.
+</video>
 
 ## What it does
 
@@ -49,6 +49,6 @@ For help, see [troubleshooting and recovery](docs/technical-guide.md#safety-and-
 - [Installation](docs/installation.md)
 - [Technical guide: behavior, settings, architecture, and troubleshooting](docs/technical-guide.md)
 - [How it works with GNOME and Wayland](docs/wayland-sequence.md)
-- [Rebuilding the demo](docs/demo/README.md)
+- [Live desktop demo (MP4)](docs/media/demo.mp4)
 
 Parts of this personal-use project were generated with AI. It is not published on extensions.gnome.org. No project license has been declared; see the [project notes](docs/technical-guide.md#ai-personal-use-and-licensing) before redistributing.
