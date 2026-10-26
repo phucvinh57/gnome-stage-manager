@@ -4,12 +4,12 @@
   "type": "module",
   "scripts": {
     "studio": "remotion studio src/index.jsx",
-    "render": "remotion render src/index.jsx StageManager build/stage-manager-demo.mp4 --codec=h264 --crf=18 --pixel-format=yuv420p --concurrency=2"
+    "render": "remotion render src/index.jsx StageManager build/stage-manager-demo.gif --codec=gif --scale=0.5 --every-nth-frame=2 --number-of-gif-loops=0 --concurrency=2"
   },
   "dependencies": {
-    "@remotion/cli": "4.0.538",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "remotion": "4.0.538"
+    "@remotion/cli": "4.0.539",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.539"
   }
 }

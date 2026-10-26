@@ -8,8 +8,7 @@ not a GNOME session recording or a runtime compatibility test.
 
 - README preview: [`../media/stage-manager-demo.gif`](../media/stage-manager-demo.gif)
 - Composition: `StageManager`, 1920 × 1080, 30 fps, 270 frames (9 seconds)
-- Preview format: looping GIF, 960 × 540, 12 fps, with on-screen explanations
-- Intermediate render: silent H.264 MP4 in the ignored `build/` directory
+- Render format: looping GIF, 960 × 540, 15 fps, with on-screen explanations
 
 All artwork is drawn in React/CSS/SVG. There are no external images, remote font
 requests, recordings, or audio assets. The composition uses Ubuntu when installed
@@ -19,35 +18,33 @@ separate from the extension’s development dependencies.
 
 ## Rebuild
 
-Use Node.js 22 or newer and npm. From the repository root:
+Use Bun 1.4 or newer. From the repository root:
 
 ```sh
-npm --prefix docs/demo ci
-npm --prefix docs/demo run studio
-npm --prefix docs/demo run render
+cd docs/demo
+bun install --frozen-lockfile
+bun run studio
+bun run render
 ```
 
 Remotion can download a compatible browser automatically. To use an existing
 Chrome installation, append its path to the render command:
 
 ```sh
-npm --prefix docs/demo run render -- --browser-executable=/usr/bin/google-chrome
+bun run render --browser-executable=/usr/bin/google-chrome
 ```
 
 See Remotion’s [composition fundamentals](https://www.remotion.dev/docs/idea)
 and [render CLI reference](https://www.remotion.dev/docs/cli/render).
 
-The render command creates `docs/demo/build/stage-manager-demo.mp4` as a local
-intermediate file. Generate the README preview with FFmpeg:
+The render command creates `docs/demo/build/stage-manager-demo.gif`. To update
+the README preview, copy it to `docs/media/` from the repository root:
 
 ```sh
-ffmpeg -y -i docs/demo/build/stage-manager-demo.mp4 \
-  -filter_complex '[0:v]fps=12,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3' \
-  -loop 0 docs/media/stage-manager-demo.gif
+cp docs/demo/build/stage-manager-demo.gif docs/media/stage-manager-demo.gif
 ```
 
-Run this command from the repository root. Only the GIF is published; the
-intermediate MP4 can be deleted after conversion.
+Run this command from the repository root. The `build/` copy is ignored by Git.
 
 ## Storyboard
 
@@ -66,5 +63,4 @@ window and use a slight mirrored shear and app badges.
 
 The root README displays the GIF as a standard Markdown image. Commit
 `docs/media/stage-manager-demo.gif` in regular Git so the inline preview does not
-depend on LFS media hosting. The intermediate MP4 is ignored and is not needed
-to view the demo.
+depend on LFS media hosting.
