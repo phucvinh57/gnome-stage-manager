@@ -35,9 +35,10 @@ export class WindowTracker {
     _track(window, newlyCreated) {
         if (this._windows.has(window))
             return;
-        const state = {ids: [], awaitingFrame: newlyCreated, actor: null,
+        const state = {ids: [], effectActor: null, effectIds: [], awaitingFrame: newlyCreated, actor: null,
             frameSignal: 0, timeoutId: 0};
         this._windows.set(window, state);
+        this._watchEffects(window);
         const ids = state.ids;
         const connect = (signal, callback) => ids.push(window.connect(signal, callback));
         if (newlyCreated)
@@ -51,6 +52,7 @@ export class WindowTracker {
         });
         connect('unmanaged', () => {
             this._windows.delete(window);
+            this._stopEffectWatch(state);
             this._stopFrameWatch(state);
             for (const id of ids)
                 window.disconnect(id);
@@ -62,6 +64,7 @@ export class WindowTracker {
 
     _watchFirstFrame(window, actor) {
         const state = this._windows.get(window);
+        this._watchEffects(window, actor);
         if (!state?.awaitingFrame || !actor || state.actor === actor)
             return;
         if (state.actor && state.frameSignal)
@@ -75,6 +78,26 @@ export class WindowTracker {
                 return GLib.SOURCE_REMOVE;
             });
         }
+    }
+
+    _watchEffects(window, actor = window.get_compositor_private()) {
+        const state = this._windows.get(window);
+        if (!state || state.effectActor === actor)
+            return;
+        this._stopEffectWatch(state);
+        if (!actor)
+            return;
+        state.effectActor = actor;
+        for (const signal of ['effects-completed', 'transitions-completed'])
+            state.effectIds.push(actor.connect(signal, () => this._onChanged()));
+        state.effectIds.push(actor.connect('destroy', () => this._stopEffectWatch(state)));
+    }
+
+    _stopEffectWatch(state) {
+        for (const id of state.effectIds)
+            state.effectActor.disconnect(id);
+        state.effectActor = null;
+        state.effectIds = [];
     }
 
     _frameReady(window) {
@@ -133,6 +156,7 @@ export class WindowTracker {
             object.disconnect(id);
         this._connections = [];
         for (const [window, state] of this._windows) {
+            this._stopEffectWatch(state);
             this._stopFrameWatch(state);
             for (const id of state.ids)
                 window.disconnect(id);

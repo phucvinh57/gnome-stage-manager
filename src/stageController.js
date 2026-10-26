@@ -11,6 +11,7 @@ import {WindowTracker} from './windowTracker.js';
 import {StageStrip} from './stageStrip.js';
 import {WindowArranger} from './windowArranger.js';
 import {stageGeometry} from './stageGeometry.js';
+import {previewSourceIsAnimating} from './previewSource.js';
 
 export class StageController {
     constructor(settings) {
@@ -176,6 +177,12 @@ export class StageController {
         if (active) {
             for (const window of this._tracker.familyFor(active.window))
                 this._ledger.restore(window);
+            // Focus can arrive before the new client paints or finishes its
+            // map/resize animation. Keep the previous stage behind it until
+            // it is ready, so the handoff never exposes an empty desktop.
+            if (active.awaitingFrame || this._arranger.isPending(active.window) ||
+                previewSourceIsAnimating(active.window.get_compositor_private()))
+                return;
         }
         for (const record of this._model.windows) {
             if (record.id === this._model.activeId)
@@ -183,6 +190,10 @@ export class StageController {
             // A newly mapped client may not have supplied its first buffer yet.
             // Let Mutter paint it before taking the image and minimizing it.
             if (record.awaitingFrame || this._arranger.isPending(record.window))
+                continue;
+            // Lock suspension restores owned windows. On resume, let Shell's
+            // restore animation finish before capturing and minimizing again.
+            if (previewSourceIsAnimating(record.window.get_compositor_private()))
                 continue;
             if (!record.window.minimized)
                 this._strip.capture(record.window);

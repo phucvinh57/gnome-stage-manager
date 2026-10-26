@@ -8,6 +8,7 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import {previewTransform, snapshotSize} from './previewGeometry.js';
+import {previewSourceIsStable} from './previewSource.js';
 
 // Mutter capture is native-resolution; downsample on the GPU before caching.
 // Bound the temporary input independently from retained thumbnail textures.
@@ -139,6 +140,8 @@ export class StagePreview {
                 this._source = source;
                 for (const signal of ['notify::width', 'notify::height', 'notify::visible'])
                     this._sourceSignals.push(source.connect(signal, () => this._syncThumbnail()));
+                this._sourceSignals.push(source.connect('transitions-completed', () => this.capture()));
+                this._sourceSignals.push(source.connect('effects-completed', () => this.capture()));
                 // Keep one safe last-visible image even if the user minimizes
                 // the active window before the controller gets a capture chance.
                 this._sourceSignals.push(source.connect('first-frame', () => {
@@ -229,8 +232,7 @@ export class StagePreview {
 
     _isVisibleSource() {
         const source = this._source;
-        return this._window && !this._window.minimized && source && source.visible &&
-            source.width > 0 && source.height > 0;
+        return this._window && !this._window.minimized && previewSourceIsStable(source);
     }
 
     _syncThumbnail() {

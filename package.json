@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node --experimental-vm-modules --test",
     "lint": "eslint .",
     "check": "npm run lint && glib-compile-schemas --strict --dry-run schemas",
     "pack": "bash scripts/package.sh && gnome-extensions install --force dist/stage-manager@phucvinh57.shell-extension.zip"

@@ -147,7 +147,9 @@ export class WindowArranger {
 
     canShowStrip(window) {
         const state = this._states.get(window);
-        return !state || (!state.timeoutId && !state.constrained && !this._grabbed.has(window));
+        // A client resize settles asynchronously on every new window. Keep the
+        // strip mapped throughout that normal handoff instead of flashing it.
+        return !this._grabbed.has(window) && !state?.constrained;
     }
 
     isPending(window) {
