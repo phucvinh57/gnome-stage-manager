@@ -138,7 +138,7 @@ export class StageController {
             ? stageGeometry(area, this._settings.get_string('strip-edge'),
                 this._settings.get_int('preview-width'), this._settings.get_int('window-padding'),
                 this._settings.get_int('strip-gap'), this._settings.get_int('strip-padding'),
-                this._settings.get_boolean('match-strip-spacing'))
+                this._settings.get_boolean('match-strip-spacing'), inContext.length > 1)
             : null;
         this._arranger.sync(inContext.filter(record => !record.awaitingFrame), geometry?.window);
         this._model.setContext(workspace, monitor);

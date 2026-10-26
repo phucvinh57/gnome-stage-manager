@@ -11,7 +11,7 @@ Future Ubuntu/GNOME releases need review before being added to `shell-version`.
 - Arranges eligible normal windows on the **primary monitor and current workspace**, retaining managed state on other workspaces. Other monitors are not stage-managed.
 - Each top-level window is one stage; transient dialogs follow their parent rather than becoming separate stages. There are no persistent groups or multiwindow stage groups.
 - Switching stages minimizes other eligible windows and restores the selected window family. Eligible top-level windows share one frame in the primary monitor's usable area. Workspace switches preserve those frames, inactive-stage minimizations, and workspace-local selection, avoiding a restore-and-resize cycle on return. Original frames and maximize states are not saved; stopping management leaves windows at their current geometry.
-- The strip defaults to the **right** edge and excludes the active stage. It remains an overlay without a Shell strut, while the extension reserves its space in managed window frames even when only one stage exists. Preferences can move it to the left and adjust window padding and the strip gap.
+- The strip defaults to the **right** edge and excludes the active stage. It remains an overlay without a Shell strut. When only one eligible window exists on the current workspace and primary monitor, it fills the usable work area with window padding on all four sides. With multiple windows, managed frames reserve space for the strip. Preferences can move it to the left and adjust window padding and the strip gap.
 - Clicking a card activates its window. Next/previous shortcuts cycle in stable window-discovery order, not MRU order. Cycling while Stage Manager is off turns it on.
 - The strip hides in fullscreen. Overview pauses stage management and hides the strip while preserving managed geometry and minimizations; its native window picker still includes minimized windows. Selection and visibility are reconciled as Overview starts closing, and the strip returns after it closes. Lock/greeter modes suspend management and restore extension-owned minimizations; management resumes afterward when enabled.
 - User drags and resizes are returned to the shared frame after the drag ends. The strip stays visible while a client resize settles, and hides during a user drag or when an application's size constraints prevent it from fitting. When a new stage opens, the previous window stays behind it until its first frame, map animation, and resize are ready. Windows moved to another monitor keep the user's placement there.
@@ -68,7 +68,7 @@ Schema: `org.gnome.shell.extensions.stage-manager`, path `/org/gnome/shell/exten
 | `preview-width` | `180` | Logical pixels; range 100–320 |
 | `preview-gap` | `8` | Vertical space between previews in theme-scaled pixels; range 0–128; updates immediately |
 | `preview-corner-radius` | `6` | Window preview corner radius in theme-scaled pixels; range 0–32, 0 gives square corners; updates immediately |
-| `window-padding` | `16` | Logical pixels above, below, and on the outer side of the managed window; range 0–128 |
+| `window-padding` | `16` | Logical pixels above, below, and on the outer side of the managed window, or on all four sides for a lone window; range 0–128 |
 | `strip-padding` | `16` | Sidebar inset from work area edges, independent of window padding; range 0–128 |
 | `match-strip-spacing` | `true` | Match the sidebar-to-window gap to sidebar edge spacing |
 | `strip-gap` | `16` | Custom logical pixel gap between window and strip when matching is off; range 0–128 |
@@ -77,7 +77,7 @@ Schema: `org.gnome.shell.extensions.stage-manager`, path `/org/gnome/shell/exten
 | `next-shortcut` | `['<Super><Shift>bracketright']` | Next eligible window |
 | `previous-shortcut` | `['<Super><Shift>bracketleft']` | Previous eligible window |
 
-For balanced spacing, leave **Match sidebar spacing** enabled and adjust **Sidebar edge spacing** (16 pixels by default). **Window padding** changes only the active window’s top, bottom, and outer margin. Disable matching to set a **Custom sidebar gap**. Spacing is measured from the strip allocation; previews include symmetric transparent room for focus outlines. On very small work areas, spacing is clamped to keep the window usable.
+For balanced spacing, leave **Match sidebar spacing** enabled and adjust **Sidebar edge spacing** (16 pixels by default). **Window padding** changes the active window’s top, bottom, and outer margin when the sidebar is reserved, and all four margins for a lone window. Disable matching to set a **Custom sidebar gap**. Spacing is measured from the strip allocation; previews include symmetric transparent room for focus outlines. On very small work areas, spacing is clamped to keep the window usable.
 
 Shortcuts operate in normal Shell mode. Preferences accept one GTK accelerator per action; press Enter or Apply to save. Invalid entries are marked red and are not saved. Clearing a field saves an empty array and disables that shortcut. Layout-specific key availability and conflicts with other bindings need validation.
 
