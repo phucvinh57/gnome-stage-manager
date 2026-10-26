@@ -50,10 +50,24 @@ export default class StageManagerPreferences extends ExtensionPreferences {
 
         this._addSpinRow(appearance, settings, 'preview-width',
             'Preview width', 'Width in logical pixels', 100, 320, 10);
+        this._addSpinRow(appearance, settings, 'preview-gap',
+            'Gap between previews', 'Vertical spacing in pixels; set to 0 for no gap', 0, 128, 1);
+        this._addSpinRow(appearance, settings, 'preview-corner-radius',
+            'Preview corner radius', 'Rounded corners in pixels; set to 0 for square corners', 0, 32, 1);
         this._addSpinRow(appearance, settings, 'window-padding',
-            'Window padding', 'Logical pixels around windows and previews', 0, 128, 1);
-        this._addSpinRow(appearance, settings, 'strip-gap',
-            'Strip gap', 'Logical pixels between windows and previews', 0, 128, 1);
+            'Window padding', 'Space above, below, and on the outer side of the active window', 0, 128, 1);
+        this._addSpinRow(appearance, settings, 'strip-padding',
+            'Sidebar edge spacing', 'Space from the sidebar to the work area edges', 0, 128, 1);
+        const matchSpacing = new Adw.SwitchRow({
+            title: 'Match sidebar spacing',
+            subtitle: 'Use the same space toward the screen edge and the active window',
+        });
+        appearance.add(matchSpacing);
+        settings.bind('match-strip-spacing', matchSpacing, 'active', Gio.SettingsBindFlags.DEFAULT);
+        const stripGap = this._addSpinRow(appearance, settings, 'strip-gap',
+            'Custom sidebar gap', 'Space between the sidebar and the active window', 0, 128, 1);
+        settings.bind('match-strip-spacing', stripGap, 'sensitive',
+            Gio.SettingsBindFlags.GET | Gio.SettingsBindFlags.INVERT_BOOLEAN);
         this._addSpinRow(appearance, settings, 'animation-duration',
             'Animation duration', 'Milliseconds; set to 0 for no animation', 0, 400, 10);
 
@@ -96,6 +110,7 @@ export default class StageManagerPreferences extends ExtensionPreferences {
         });
         group.add(row);
         settings.bind(key, row, 'value', Gio.SettingsBindFlags.DEFAULT);
+        return row;
     }
 
     _addShortcutRow(group, settings, signals, key, title) {

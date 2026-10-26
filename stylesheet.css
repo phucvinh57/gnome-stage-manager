@@ -8,11 +8,11 @@
 }
 
 .stage-manager-list {
-    spacing: 14px;
+    spacing: 8px;
 }
 
 .stage-manager-card {
-    padding: 10px;
+    padding: 0 10px;
     border: none;
     border-radius: 10px;
     background-color: transparent;

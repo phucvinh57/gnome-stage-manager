@@ -1,14 +1,21 @@
-// Project the whole preview onto a trapezium, independent of the stage camera.
-// Left edge stays full height; the right edge is 72% as tall and 90% as far
-// across. Column-major Graphene matrix; homogeneous division supplies perspective.
-export function previewTransform(width, height) {
-    const depth = 1 / 0.72 - 1;
-    const perspective = depth / Math.max(1, width);
+export const PREVIEW_SKEW = 0.06;
+
+// Smoothly fan the visible stack: down at the top, flat in the middle,
+// up at the bottom on the left (mirrored on the right). A single preview stays flat.
+export function previewSlope(index, count, edge) {
+    const position = count > 1 ? 1 - 2 * index / (count - 1) : 0;
+    return PREVIEW_SKEW * position * (edge === 'right' ? -1 : 1);
+}
+
+// Affine shear: vertical edges stay equal and upright.
+// Translate upward-sloping previews into positive allocation coordinates.
+// Column-major Graphene matrix.
+export function previewTransform(width, slope) {
     return [
-        0.9 * (1 + depth), height * perspective / 2, 0, perspective,
+        1, slope, 0, 0,
         0, 1, 0, 0,
         0, 0, 1, 0,
-        0, 0, 0, 1,
+        0, Math.max(0, -slope * width), 0, 1,
     ];
 }
 

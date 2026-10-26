@@ -6,6 +6,7 @@ import * as Config from 'resource:///org/gnome/shell/misc/config.js';
 
 import {StagePreview} from './stagePreview.js';
 import {stageGeometry} from './stageGeometry.js';
+import {previewSlope} from './previewGeometry.js';
 import {supportsReducedMotion} from './shellCompat.js';
 
 // Transparent breathing room for the tilted previews and focus outline.
@@ -59,6 +60,8 @@ export class StageStrip {
         Main.ctrlAltTabManager.addGroup(this.actor, 'Stage Manager',
             'view-grid-symbolic');
         this._connect(settings, 'changed::preview-width', () => this._layout());
+        this._connect(settings, 'changed::preview-gap', () => this._updatePreviewGap());
+        this._connect(settings, 'changed::preview-corner-radius', () => this._layout());
         this._connect(this._themeContext, 'notify::scale-factor', () => {
             this._previewWidth = 0;
             this._layout();
@@ -66,6 +69,8 @@ export class StageStrip {
         this._connect(settings, 'changed::strip-edge', () => this._layout());
         this._connect(settings, 'changed::window-padding', () => this._layout());
         this._connect(settings, 'changed::strip-gap', () => this._layout());
+        this._connect(settings, 'changed::strip-padding', () => this._layout());
+        this._connect(settings, 'changed::match-strip-spacing', () => this._layout());
         this._connect(Main.layoutManager, 'monitors-changed', () => this._layout());
         this._connect(global.display, 'workareas-changed', () => this._layout());
         this._connect(global.window_manager, 'map', (_wm, actor) => {
@@ -93,6 +98,11 @@ export class StageStrip {
         if (supportsReducedMotion(this._stSettings))
             this._connect(this._stSettings, 'notify::reduced-motion', finishAnimations);
         this._connect(settings, 'changed::animation-duration', finishAnimations);
+        this._updatePreviewGap();
+    }
+
+    _updatePreviewGap() {
+        this._list.set_style(`spacing: ${this._settings.get_int('preview-gap')}px;`);
         this._layout();
     }
 
@@ -152,6 +162,7 @@ export class StageStrip {
                 this._list.add_child(card.actor);
                 card.actor.connect('key-focus-in', () => this._ensureVisible(card.actor));
                 card.setPreviewWidth(Math.max(1, this._previewWidth - this._horizontalChrome()));
+                card.setPreviewEdge(this._settings.get_string('strip-edge'));
                 this._pendingAdded.add(card);
                 if (preparing)
                     card.actor.visible = false;
@@ -215,9 +226,25 @@ export class StageStrip {
             this._syncVisibility();
             return;
         }
-        const geometry = stageGeometry(area, this._settings.get_string('strip-edge'),
+        const edge = this._settings.get_string('strip-edge');
+        const radius = this._settings.get_int('preview-corner-radius') * this._themeContext.scale_factor;
+        for (const card of this._cards.values()) {
+            card.setPreviewEdge(edge);
+            card.setCornerRadius(radius);
+        }
+        // Follow displayed order; active, pending and other-workspace cards
+        // must not affect the fan's midpoint or its endpoints.
+        const cardsByActor = new Map([...this._cards.values()].map(card => [card.actor, card]));
+        const visibleCards = this._list.get_children()
+            .filter(actor => actor.visible)
+            .map(actor => cardsByActor.get(actor));
+        visibleCards.forEach((card, index) => {
+            card.setPreviewSlope(previewSlope(index, visibleCards.length, edge));
+        });
+        const geometry = stageGeometry(area, edge,
             this._settings.get_int('preview-width'), this._settings.get_int('window-padding'),
-            this._settings.get_int('strip-gap'));
+            this._settings.get_int('strip-gap'), this._settings.get_int('strip-padding'),
+            this._settings.get_boolean('match-strip-spacing'));
         this._hasWorkArea = geometry.hasStrip;
         const width = Math.max(1, geometry.strip.width);
         if (width !== this._previewWidth) {

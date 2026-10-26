@@ -21,17 +21,40 @@
       <summary>Preview width</summary>
       <description>Window preview width in logical pixels.</description>
     </key>
+    <key name="preview-gap" type="i">
+      <range min="0" max="128"/>
+      <default>8</default>
+      <summary>Gap between previews</summary>
+      <description>Vertical space between preview windows in theme-scaled pixels.</description>
+    </key>
+    <key name="preview-corner-radius" type="i">
+      <range min="0" max="32"/>
+      <default>6</default>
+      <summary>Preview corner radius</summary>
+      <description>Radius of window preview corners in theme-scaled pixels. Zero gives square corners.</description>
+    </key>
     <key name="window-padding" type="i">
       <range min="0" max="128"/>
       <default>16</default>
       <summary>Window padding</summary>
-      <description>Padding around the window and preview strip in logical pixels.</description>
+      <description>Padding above, below, and on the outer side of the arranged window in logical pixels. Sidebar spacing is configured separately.</description>
+    </key>
+    <key name="strip-padding" type="i">
+      <range min="0" max="128"/>
+      <default>16</default>
+      <summary>Sidebar edge spacing</summary>
+      <description>Inset of the preview strip from the work area edges in logical pixels, independent of window padding.</description>
+    </key>
+    <key name="match-strip-spacing" type="b">
+      <default>true</default>
+      <summary>Match sidebar spacing</summary>
+      <description>Use sidebar edge spacing for the gap between the strip and arranged window. Disable to use a custom strip gap.</description>
     </key>
     <key name="strip-gap" type="i">
       <range min="0" max="128"/>
       <default>16</default>
       <summary>Strip gap</summary>
-      <description>Space between the arranged window and preview strip in logical pixels.</description>
+      <description>Space between the arranged window and preview strip in logical pixels when matching sidebar spacing is disabled.</description>
     </key>
     <key name="animation-duration" type="i">
       <range min="0" max="400"/>

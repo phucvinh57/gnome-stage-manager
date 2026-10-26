@@ -8,6 +8,7 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import {previewTransform, snapshotSize} from './previewGeometry.js';
+import {RoundedPreviewEffect} from './roundedPreviewEffect.js';
 import {previewSourceIsStable} from './previewSource.js';
 
 // Mutter capture is native-resolution; downsample on the GPU before caching.
@@ -37,6 +38,10 @@ export class StagePreview {
         this._snapshotWidth = 0;
         this._snapshotHeight = 0;
         this._width = 160;
+        this._widthFactor = 0.9 + Math.random() * 0.1;
+        this._edge = 'left';
+        this._slope = 0;
+        this._cornerRadius = 0;
 
         this.actor = new St.Button({
             style_class: 'stage-manager-card',
@@ -46,18 +51,38 @@ export class StagePreview {
             x_expand: true,
         });
         // A transparent hit target surrounds the window itself, not a card.
-        const box = new St.Widget({layout_manager: new Clutter.BinLayout()});
+        const box = new St.Widget({
+            layout_manager: new Clutter.BinLayout(),
+            x_align: Clutter.ActorAlign.START,
+        });
+        this._box = box;
         this.actor.set_child(box);
+        // Keep the transform on an unclipped parent. The inner viewport crops
+        // oversized window content in local coordinates before it is sheared.
+        this._surface = new St.Widget({
+            layout_manager: new Clutter.BinLayout(),
+            // BinLayout uses actor alignment only on expanding axes. Otherwise
+            // it centers the surface in the space reserved for the shear,
+            // shifting its bottom corner beyond the card's scroll allocation.
+            x_expand: true,
+            y_expand: true,
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.START,
+            clip_to_allocation: false,
+        });
+        this._surface.set_pivot_point(0, 0);
+        box.add_child(this._surface);
         this._thumbnail = new St.Widget({
             style_class: 'stage-manager-thumbnail',
             layout_manager: new Clutter.BinLayout(),
-            clip_to_allocation: false,
-            x_expand: true,
+            clip_to_allocation: true,
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.START,
         });
-        // Explicit perspective rather than a Y/Z rotation: both vertical edges
-        // stay upright, with the right edge shorter, as in the sidebar sketch.
-        this._thumbnail.set_pivot_point(0, 0);
-        box.add_child(this._thumbnail);
+        this._roundedEffect = new RoundedPreviewEffect();
+        this._thumbnail.add_effect(this._roundedEffect);
+        // Shear only the window surface; the app badge stays upright.
+        this._surface.add_child(this._thumbnail);
         this._icon = new St.Icon({
             style_class: 'stage-manager-app-badge',
             icon_size: 24,
@@ -116,11 +141,34 @@ export class StagePreview {
     }
 
     setPreviewWidth(width) {
-        width = Math.max(1, width);
+        width = Math.max(1, Math.round(width * this._widthFactor));
         if (width === this._width)
             return;
         this._width = width;
         this._syncThumbnail();
+    }
+
+    setPreviewEdge(edge) {
+        if (edge === this._edge)
+            return;
+        this._edge = edge;
+        this._box.x_align = edge === 'right'
+            ? Clutter.ActorAlign.END : Clutter.ActorAlign.START;
+        this._syncThumbnail();
+    }
+
+    setPreviewSlope(slope) {
+        if (slope === this._slope)
+            return;
+        this._slope = slope;
+        this._syncThumbnail();
+    }
+
+    setCornerRadius(radius) {
+        if (radius === this._cornerRadius)
+            return;
+        this._cornerRadius = radius;
+        this._roundedEffect.update(this._width, this.previewHeight, radius);
     }
 
     /** Retry after controller refresh/map; no clone before an actor exists. */
@@ -239,16 +287,24 @@ export class StagePreview {
         if (!this.actor)
             return;
         const source = this._source;
-        // Match each window's aspect ratio instead of a fixed black 16:9 tile.
+        // Each preview keeps a 16:9 surface at its own stable varied width.
         const visible = this._isVisibleSource();
-        const width = visible ? source.width : this._snapshotWidth;
-        const height = visible ? source.height : this._snapshotHeight;
-        const ratio = width > 0 && height > 0 ? height / width : 9 / 16;
-        this._thumbnail.height = Math.max(1, Math.round(this._width * Math.min(1.4, ratio)));
+        this._thumbnail.height = Math.max(1, Math.round(this._width * 9 / 16));
         this._thumbnail.width = this._width;
+        this._surface.set_size(this._width, this.previewHeight);
+        this._roundedEffect.update(this._width, this.previewHeight, this._cornerRadius);
+        // Transforms do not affect allocation: reserve the sheared bounds so
+        // adjacent previews and the scroll view do not overlap or clip them.
+        // Include a pixel on either side for fractional transformed edges.
+        // Give the button an explicit height too: scroll extents must include
+        // the last card's transformed corner, not just its inner viewport.
+        const height = Math.ceil(this.previewHeight + Math.abs(this._slope) * this._width) + 2;
+        this._box.set_size(this._width, height);
+        this.actor.height = height;
+        this._surface.translation_y = 1;
         const transform = new Graphene.Matrix();
-        transform.init_from_float(previewTransform(this._width, this.previewHeight));
-        this._thumbnail.set_transform(transform);
+        transform.init_from_float(previewTransform(this._width, this._slope));
+        this._surface.set_transform(transform);
         if (!visible) {
             this._clearClone();
             if (this._snapshot) {
@@ -278,9 +334,10 @@ export class StagePreview {
     }
 
     _fit(actor, width, height) {
-        const scale = Math.min(this._width / width, this.previewHeight / height);
-        actor.set_size(Math.max(1, Math.floor(width * scale)),
-            Math.max(1, Math.floor(height * scale)));
+        // Fill the common surface without stretching; clip excess at its edges.
+        const scale = Math.max(this._width / width, this.previewHeight / height);
+        actor.set_size(Math.max(1, Math.ceil(width * scale)),
+            Math.max(1, Math.ceil(height * scale)));
     }
 
     _clearSnapshot() {
