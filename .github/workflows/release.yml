@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      ZIP: dist/stage-manager@phucvinh57.shell-extension.zip
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gnome-shell libglib2.0-bin jq
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check
+        run: bun run check
+
+      - name: Test
+        run: bun run test
+
+      # extensions.gnome.org assigns `version` itself; `version-name` is what users see.
+      - name: Set version name from tag
+        run: |
+          name=${GITHUB_REF_NAME#v}
+          if ! grep -qP '^(?!^[. ]+$)[a-zA-Z0-9 .]{1,16}$' <<<"$name"; then
+              echo "::error::Tag '$GITHUB_REF_NAME' is not a valid version-name"
+              exit 1
+          fi
+          jq --arg name "$name" 'del(.version) | .["version-name"] = $name' \
+              metadata.json > metadata.json.tmp
+          mv metadata.json.tmp metadata.json
+
+      - name: Package
+        run: bash scripts/package.sh
+
+      - name: Upload to extensions.gnome.org
+        env:
+          EGO_USERNAME: ${{ secrets.EGO_USERNAME }}
+          EGO_PASSWORD: ${{ secrets.EGO_PASSWORD }}
+        run: |
+          api=https://extensions.gnome.org/api/v1
+          token=$(jq -n --arg login "$EGO_USERNAME" --arg password "$EGO_PASSWORD" \
+                '{login: $login, password: $password}' |
+              curl -sS --fail-with-body -X POST "$api/accounts/login/" \
+                -H 'Content-Type: application/json' --data-binary @- |
+              jq -er '.token.token')
+          echo "::add-mask::$token"
+          trap 'curl -sS -X POST "$api/accounts/logout/" -H "Authorization: Token $token" >/dev/null || true' EXIT
+          curl -sS --fail-with-body -X POST "$api/extensions" \
+            -H "Authorization: Token $token" \
+            -F shell_license_compliant=true \
+            -F tos_compliant=true \
+            -F "source=@$ZIP"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "$ZIP" --verify-tag --generate-notes

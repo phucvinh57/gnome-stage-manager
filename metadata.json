@@ -5,5 +5,5 @@
   "shell-version": ["46", "47", "48", "49", "50", "51"],
   "session-modes": ["user", "unlock-dialog"],
   "settings-schema": "org.gnome.shell.extensions.stage-manager",
-  "version": 1
+  "url": "https://github.com/phucvinh57/gnome-stage-manager"
 }
