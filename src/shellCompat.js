@@ -1,6 +1,10 @@
-// Mutter 49 changed the maximization API.
+// Mutter 49 changed the maximization API and removed Meta.Window's legacy
+// maximized getter; older releases expose the same state as properties.
 export function maximizeFlags(window) {
-    return window.get_maximize_flags?.() ?? window.get_maximized();
+    if (window.get_maximize_flags)
+        return window.get_maximize_flags();
+    return (window.maximized_horizontally ? 1 : 0) |
+        (window.maximized_vertically ? 2 : 0);
 }
 
 export function maximizeWindow(window) {
