@@ -122,6 +122,28 @@ test('resume waits for restore animation, then captures before minimizing once',
     assert.deepEqual(events, ['capture', 'minimize']);
 });
 
+test('lock screen pauses stages without restoring, capturing, or minimizing windows', async () => {
+    const sessionMode = {isLocked: true, isGreeter: false};
+    const Controller = await loadShellClass('../src/stageController.js', 'StageController', {
+        'resource:///org/gnome/shell/ui/main.js': {sessionMode},
+    });
+    const events = [];
+    const fail = name => () => assert.fail(`${name} while locked`);
+    const controller = Object.assign(Object.create(Controller.prototype), {
+        _destroyed: false, _refreshId: 0,
+        _tracker: {records: []},
+        _strip: {
+            retain: () => events.push('retain'),
+            setVisible: visible => events.push(['visible', visible]),
+            capture: fail('capture'),
+        },
+        _ledger: {restoreAll: fail('restore'), minimize: fail('minimize')},
+        _arranger: {releaseAll: fail('release geometry')},
+    });
+    controller._refresh();
+    assert.deepEqual(events, ['retain', ['visible', false]]);
+});
+
 test('opening a stage preserves the previous window until the new stage is ready', () => {
     const events = [];
     let pending = false;

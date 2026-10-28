@@ -66,8 +66,9 @@ sequenceDiagram
 - **Suspension:** Overview hides the strip and pauses management without
   restoring windows. Its native picker includes minimized windows; reconcile
   selection and visibility when it starts closing, then reveal the strip once
-  it is hidden. Lock/greeter mode restores owned minimizations and releases
-  geometry tracking. Original frames and maximize states are not saved.
+  it is hidden. The lock screen pauses management and keeps owned
+  minimizations and snapshots. Greeter mode restores owned minimizations and
+  releases geometry tracking. Original frames and maximize states are not saved.
 - **Scope:** management targets eligible windows on the active workspace and
   primary monitor. Newly mapped windows and windows with a pending resize are
   allowed to settle before they are minimized.

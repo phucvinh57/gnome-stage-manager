@@ -3,6 +3,7 @@
   "name": "Stage Manager",
   "description": "Focus on one window at a time with a workspace-local strip of recent stages. Primary monitor only. Experimental, personal-use extension.",
   "shell-version": ["46", "47", "48", "49", "50", "51"],
+  "session-modes": ["user", "unlock-dialog"],
   "settings-schema": "org.gnome.shell.extensions.stage-manager",
   "version": 1
 }

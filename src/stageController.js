@@ -106,6 +106,13 @@ export class StageController {
         // Card lifetime follows the global window set, not the selected
         // workspace. Prune even while Overview or stage mode suspends updates.
         this._strip.retain(records);
+        if (Main.sessionMode.isLocked) {
+            // The lock screen hides every window. Keep owned minimizations and
+            // their snapshots: windows restored while hidden would be captured
+            // blank when management resumes after unlocking.
+            this._strip.setVisible(false);
+            return;
+        }
         if (this._stopped) {
             this._strip.setVisible(false);
             this._arranger.releaseAll();
@@ -192,7 +199,7 @@ export class StageController {
             // Let Mutter paint it before taking the image and minimizing it.
             if (record.awaitingFrame || this._arranger.isPending(record.window))
                 continue;
-            // Lock suspension restores owned windows. On resume, let Shell's
+            // Suspension restores owned windows. On resume, let Shell's
             // restore animation finish before capturing and minimizing again.
             if (previewSourceIsAnimating(record.window.get_compositor_private()))
                 continue;
