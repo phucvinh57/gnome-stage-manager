@@ -4,19 +4,21 @@ import test from 'node:test';
 import {URL} from 'node:url';
 import {SourceTextModule, SyntheticModule} from 'node:vm';
 
+import * as appWindow from '../src/appWindow.js';
 import * as previewSource from '../src/previewSource.js';
 
 // Exercise the Shell classes without starting or modifying a desktop session.
 async function loadShellClass(path, name, overrides = {}) {
     const module = new SourceTextModule(await readFile(new URL(path, import.meta.url), 'utf8'));
     await module.link(specifier => {
-        const exports = overrides[specifier] ?? (specifier === './previewSource.js' ? previewSource : {
+        const real = {'./appWindow.js': appWindow, './previewSource.js': previewSource};
+        const exports = overrides[specifier] ?? real[specifier] ?? {
             default: {}, StageModel: class {}, MinimizeLedger: class {},
             WindowTracker: class {}, StageStrip: class {}, WindowArranger: class {},
             stageGeometry() {}, previewTransform() {}, snapshotSize() {},
             RoundedPreviewEffect: class {},
             maximizeFlags() {}, unmaximizeWindow() {},
-        });
+        };
         return new SyntheticModule(Object.keys(exports), function () {
             for (const [key, value] of Object.entries(exports))
                 this.setExport(key, value);
