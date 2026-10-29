@@ -12,15 +12,8 @@ import {supportsReducedMotion} from './shellCompat.js';
 // Transparent breathing room for the tilted previews and focus outline.
 const HORIZONTAL_CHROME = 32;
 
-/** Shell-only view; the controller owns overview/fullscreen visibility policy.
- * update(records, activeId): ordered {id, window: Meta.Window} records; IDs are
- * opaque/stable. Active cards are retained but hidden for pre-minimize capture.
- * retain(records): global eligible window snapshot, used to prune dead cards.
- * Updates show only current-context records; other cached cards stay hidden.
- * Surviving cards are never reparented, including across workspace switches.
- * setVisible(bool): desired visibility, additionally gated by a primary monitor
- * and at least one inactive card. Initially hidden. Does not manipulate windows.
- */
+// Shell-only view; the controller owns visibility policy and window state.
+// Active cards stay hidden but retained for pre-minimize capture.
 export class StageStrip {
     constructor(settings, onActivate) {
         this._settings = settings;

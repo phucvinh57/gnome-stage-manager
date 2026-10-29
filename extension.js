@@ -45,10 +45,6 @@ export default class StageManagerExtension extends Extension {
         }
     }
 
-    // Session mode unlock-dialog: metadata lists it so stages, window tracking,
-    // and preview snapshots survive screen lock. Shell therefore does not call
-    // disable() on lock; the controller pauses itself and _syncIndicator()
-    // removes the panel indicator. disable() runs only on real disable/logout.
     disable() {
         for (const name of this._bindings ?? [])
             Main.wm.removeKeybinding(name);
