@@ -1,4 +1,3 @@
-// GTK belongs only in this preferences process, never in the Shell UI modules.
 import Adw from 'gi://Adw';
 import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk?version=4.0';

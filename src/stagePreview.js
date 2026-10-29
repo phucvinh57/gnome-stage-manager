@@ -171,7 +171,6 @@ export class StagePreview {
         this._roundedEffect.update(this._width, this.previewHeight, radius);
     }
 
-    /** Retry after controller refresh/map; no clone before an actor exists. */
     refresh(record = null) {
         if (!this.actor || !this._window)
             return;
@@ -197,9 +196,7 @@ export class StagePreview {
                     this.capture();
                 }));
                 this._sourceSignals.push(source.connect('destroy', () => this._detachSource()));
-                // Already-mapped actors emitted first-frame before this card
-                // existed. This is still visible-only and never restores users'
-                // minimized windows. capture()->refresh() now sees this source.
+                // Already-mapped actors emitted first-frame before this card existed.
                 if (!this._awaitingFrame)
                     this.capture();
             }
@@ -207,13 +204,7 @@ export class StagePreview {
         this._syncThumbnail();
     }
 
-    /** Returns true only for a new snapshot. Ineligible windows retain the last
-     * snapshot, including on allocation failure. Replacement reserves enough
-     * budget for both thumbnails until the replacement has been validated.
-     * Native-resolution input is temporary and separately bounded to 64 MiB.
-     * New Mutter uses paint_to_content_full() for an explicit RGBA8 format;
-     * older Mutter uses paint_to_content(), whose default is RGBA8.
-     */
+    // Returns true only for a new snapshot; failures keep the last one.
     capture() {
         if (!this.actor || !this._window)
             return false;
@@ -287,7 +278,6 @@ export class StagePreview {
         if (!this.actor)
             return;
         const source = this._source;
-        // Each preview keeps a 16:9 surface at its own stable varied width.
         const visible = this._isVisibleSource();
         this._thumbnail.height = Math.max(1, Math.round(this._width * 9 / 16));
         this._thumbnail.width = this._width;
@@ -395,9 +385,6 @@ export class StagePreview {
     }
 }
 
-/** GPU-only resampling: no CPU readback, codec, disk, or app re-render request.
- * The returned content owns only the small texture, not the full-size input.
- */
 function downsample(input, width, height) {
     const context = input.get_context();
     const texture = Cogl.Texture2D.new_with_size(context, width, height);

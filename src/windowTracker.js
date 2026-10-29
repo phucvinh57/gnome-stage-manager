@@ -3,6 +3,7 @@
 // and can maintain this code.
 import Meta from 'gi://Meta';
 import GLib from 'gi://GLib';
+import {isAppWindow} from './appWindow.js';
 
 const FIRST_FRAME_GRACE_MS = 1500;
 
@@ -133,9 +134,7 @@ export class WindowTracker {
 
     get records() {
         return [...this._windows.keys()].filter(window =>
-            window.get_window_type() === Meta.WindowType.NORMAL &&
-            !window.get_transient_for() && !window.is_override_redirect() &&
-            !window.skip_taskbar && !window.is_on_all_workspaces() &&
+            isAppWindow(window, Meta.WindowType.NORMAL) && !window.is_on_all_workspaces() &&
             !window.is_above() && window.can_minimize() && window.get_workspace()
         ).map(window => ({
             id: window.get_stable_sequence(),

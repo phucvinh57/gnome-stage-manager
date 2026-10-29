@@ -1,8 +1,4 @@
-/**
- * Tracks only minimizations performed here, never ones performed by the user.
- * Window methods are synchronous and may synchronously emit minimized changes.
- * Errors propagate, but failed operations never retain ownership of a window.
- */
+// Tracks only minimizations performed here, never ones performed by the user.
 export class MinimizeLedger {
     constructor() {
         this._owned = new Set();
