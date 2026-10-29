@@ -77,5 +77,10 @@
       <summary>Previous window shortcut</summary>
       <description>GTK accelerators to activate the previous window. An empty array disables the shortcut.</description>
     </key>
+    <key name="close-all-shortcut" type="as">
+      <default>['&lt;Super&gt;&lt;Shift&gt;w']</default>
+      <summary>Close all windows shortcut</summary>
+      <description>GTK accelerators to close every window on all workspaces and monitors. An empty array disables the shortcut.</description>
+    </key>
   </schema>
 </schemalist>

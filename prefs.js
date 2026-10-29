@@ -82,6 +82,7 @@ export default class StageManagerPreferences extends ExtensionPreferences {
             ['toggle-shortcut', 'Toggle Stage Manager'],
             ['next-shortcut', 'Next window'],
             ['previous-shortcut', 'Previous window'],
+            ['close-all-shortcut', 'Close all windows'],
         ]) {
             this._addShortcutRow(shortcuts, settings, signals, key, title);
         }
