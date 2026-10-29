@@ -79,6 +79,7 @@ Schema: `org.gnome.shell.extensions.stage-manager`, path `/org/gnome/shell/exten
 | `toggle-shortcut` | `['<Super><Shift>space']` | Toggle Stage Manager |
 | `next-shortcut` | `['<Super><Shift>bracketright']` | Next eligible window |
 | `previous-shortcut` | `['<Super><Shift>bracketleft']` | Previous eligible window |
+| `close-all-shortcut` | `['<Super><Shift>w']` | Politely close every normal window on all workspaces and monitors; apps may still prompt to save |
 
 For balanced spacing, leave **Match sidebar spacing** enabled and adjust **Sidebar edge spacing** (16 pixels by default). **Window padding** changes the active window’s top, bottom, and outer margin when the sidebar is reserved, and all four margins for a lone window. Disable matching to set a **Custom sidebar gap**. Spacing is measured from the strip allocation; previews include symmetric transparent room for focus outlines. On very small work areas, spacing is clamped to keep the window usable.
 

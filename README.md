@@ -33,6 +33,7 @@ Stage Manager starts switched off on a fresh installation. Open **Preferences** 
 | Turn Stage Manager on or off | Super + Shift + Space |
 | Next window | Super + Shift + ] |
 | Previous window | Super + Shift + [ |
+| Close all windows | Super + Shift + W |
 
 Super is usually the Windows key. Shortcuts can be changed or cleared in Preferences.
 

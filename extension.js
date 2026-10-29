@@ -9,6 +9,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {StageController} from './src/stageController.js';
+import {closeAllWindows} from './src/closeAll.js';
 
 // Runs in unlock-dialog mode so locking does not tear down stages and their
 // snapshots. The controller pauses while locked; only the indicator is removed.
@@ -29,6 +30,9 @@ export default class StageManagerExtension extends Extension {
                 'toggle-shortcut': () => this._settings.set_boolean('stage-enabled', !this._settings.get_boolean('stage-enabled')),
                 'next-shortcut': () => this._controller.cycle(1),
                 'previous-shortcut': () => this._controller.cycle(-1),
+                'close-all-shortcut': () => closeAllWindows(
+                    global.get_window_actors().map(actor => actor.meta_window),
+                    Meta.WindowType.NORMAL, global.get_current_time()),
             };
             // NORMAL mode excludes the lock screen.
             for (const [name, action] of Object.entries(actions)) {
