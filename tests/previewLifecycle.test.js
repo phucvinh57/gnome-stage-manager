@@ -228,3 +228,42 @@ test('animation completion schedules reconciliation and actor teardown disconnec
     assert.equal(handlers.size, 0);
     tracker._stopEffectWatch(tracker._windows.get(window));
 });
+
+test('active stage takes focus once when focus does not follow the stage', async () => {
+    const activated = [];
+    const Controller = await loadShellClass('../src/stageController.js', 'StageController', {
+        'resource:///org/gnome/shell/ui/main.js': {activateWindow: window => activated.push(window)},
+    });
+    let keyFocus = null;
+    globalThis.global = {stage: {get_key_focus: () => keyFocus ?? globalThis.global.stage}};
+    const active = {id: 'active', awaitingFrame: false, window: {minimized: false}};
+    const other = {id: 'other', window: {minimized: false}};
+    const controller = Object.assign(Object.create(Controller.prototype), {
+        _model: {activeId: active.id}, _focusRequest: null, _lastFocus: null,
+    });
+    const inContext = [active, other];
+    try {
+        active.awaitingFrame = true;
+        controller._focusActive(inContext, null);
+        assert.deepEqual(activated, [], 'waits for the first frame');
+
+        active.awaitingFrame = false;
+        controller._focusActive(inContext, {});
+        assert.deepEqual(activated, [], 'focus outside the managed stage is left alone');
+
+        keyFocus = {};
+        controller._focusActive(inContext, null);
+        assert.deepEqual(activated, [], 'Shell UI keyboard focus is left alone');
+
+        keyFocus = null;
+        controller._focusActive(inContext, other.window);
+        controller._focusActive(inContext, other.window);
+        assert.deepEqual(activated, [active.window], 'requests focus once');
+
+        controller._focusActive(inContext, active.window);
+        controller._focusActive(inContext, null);
+        assert.deepEqual(activated, [active.window, active.window], 'retries after focus is lost again');
+    } finally {
+        delete globalThis.global;
+    }
+});

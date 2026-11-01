@@ -19,6 +19,7 @@ export class StageController {
         this._refreshId = 0;
         this._destroyed = false;
         this._lastFocus = null;
+        this._focusRequest = null;
         this._pendingRestore = null;
         this._arranger = new WindowArranger(() => this._queueRefresh());
         this._tracker = new WindowTracker(
@@ -115,6 +116,7 @@ export class StageController {
             this._arranger.releaseAll();
             this._ledger.restoreAll();
             this._lastFocus = null;
+            this._focusRequest = null;
             this._pendingRestore = null;
             return;
         }
@@ -162,10 +164,31 @@ export class StageController {
         this._strip.prepare(this._model.windows);
         this._applyVisibility();
         this._strip.update(this._model.windows, this._model.activeId);
+        this._focusActive(inContext, focus);
         const active = this._model.windows.find(record => record.id === this._model.activeId);
         this._strip.setVisible(!Main.overview.visible &&
             !global.display.get_monitor_in_fullscreen(monitor) &&
             (!active || this._arranger.canShowStrip(active.window)));
+    }
+
+    _focusActive(inContext, focus) {
+        const active = inContext.find(record => record.id === this._model.activeId);
+        if (!active || focus === active.window) {
+            this._focusRequest = null;
+            return;
+        }
+        if (active.window.minimized || active.awaitingFrame || this._focusRequest === active.window)
+            return;
+        // Leave focus alone when it belongs elsewhere: Shell UI, another
+        // monitor or workspace, or an unmanaged window.
+        if (focus && !inContext.some(record => record.window === focus))
+            return;
+        const keyFocus = global.stage.get_key_focus();
+        if (keyFocus && keyFocus !== global.stage)
+            return;
+        this._focusRequest = active.window;
+        this._lastFocus = active.window;
+        Main.activateWindow(active.window);
     }
 
     _setWindows(records) {
@@ -257,6 +280,7 @@ export class StageController {
         this._tracker.destroy();
         this._pendingRestore = null;
         this._lastFocus = null;
+        this._focusRequest = null;
         try {
             this._ledger.restoreAll();
         } finally {
