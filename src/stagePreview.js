@@ -1,6 +1,3 @@
-// Generated with AI for personal use.
-// Do NOT upload to extensions.gnome.org (EGO) unless you understand JavaScript
-// and can maintain this code.
 import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
 import Graphene from 'gi://Graphene';
