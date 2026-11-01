@@ -1,6 +1,3 @@
-// Generated with AI for personal use.
-// Do NOT upload to extensions.gnome.org (EGO) unless you understand JavaScript
-// and can maintain this code.
 import Meta from 'gi://Meta';
 import GLib from 'gi://GLib';
 import {isAppWindow} from './appWindow.js';
