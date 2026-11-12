@@ -3,6 +3,9 @@ export class StageModel {
     constructor() {
         this._records = new Map();
         this._mru = [];
+        // Strip display order. Switching stages swaps the old and new active
+        // slots, so the previous window's preview replaces the clicked one.
+        this._slots = [];
         this._activeId = null;
         this._context = null;
     }
@@ -28,6 +31,12 @@ export class StageModel {
         }
         this._records = next;
         this._mru = this._mru.filter(id => next.has(id));
+        const slots = this._slots.filter(id => next.has(id));
+        for (const id of next.keys()) {
+            if (!slots.includes(id))
+                slots.push(id);
+        }
+        this._slots = slots;
         this._reconcile();
     }
 
@@ -38,6 +47,11 @@ export class StageModel {
 
     get windows() {
         return this._contextRecords().map(record => ({...record}));
+    }
+
+    get stripWindows() {
+        const records = new Map(this._contextRecords().map(record => [record.id, record]));
+        return this._slots.filter(id => records.has(id)).map(id => ({...records.get(id)}));
     }
 
     get orderedWindows() {
@@ -101,6 +115,10 @@ export class StageModel {
     }
 
     _select(id) {
+        const from = this._slots.indexOf(this._activeId);
+        const to = this._slots.indexOf(id);
+        if (from >= 0 && to >= 0 && from !== to)
+            [this._slots[from], this._slots[to]] = [this._slots[to], this._slots[from]];
         this._activeId = id;
         this._mru = [id, ...this._mru.filter(previous => previous !== id)];
     }
