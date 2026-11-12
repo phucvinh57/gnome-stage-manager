@@ -161,9 +161,9 @@ export class StageController {
         this._pendingRestore = null;
         this._lastFocus = focus;
 
-        this._strip.prepare(this._model.windows);
+        this._strip.prepare(this._model.stripWindows);
         this._applyVisibility();
-        this._strip.update(this._model.windows, this._model.activeId);
+        this._strip.update(this._model.stripWindows, this._model.activeId);
         this._focusActive(inContext, focus);
         const active = this._model.windows.find(record => record.id === this._model.activeId);
         this._strip.setVisible(!Main.overview.visible &&
@@ -246,7 +246,7 @@ export class StageController {
         this._strip.retain(snapshot);
         this._model.setContext(workspace, monitor);
         this._setWindows(snapshot);
-        this._strip.prepare(this._model.windows);
+        this._strip.prepare(this._model.stripWindows);
         // Explicit selection may restore the root, but must preserve dialogs
         // that the user minimized independently.
         for (const window of this._tracker.familyFor(record.window))
