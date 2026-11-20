@@ -34,7 +34,7 @@ export class WindowTracker {
         if (this._windows.has(window))
             return;
         const state = {ids: [], effectActor: null, effectIds: [], awaitingFrame: newlyCreated, actor: null,
-            frameSignal: 0, timeoutId: 0};
+            frameSignal: 0, frameDestroySignal: 0, timeoutId: 0};
         this._windows.set(window, state);
         this._watchEffects(window);
         const ids = state.ids;
@@ -65,10 +65,16 @@ export class WindowTracker {
         this._watchEffects(window, actor);
         if (!state?.awaitingFrame || !actor || state.actor === actor)
             return;
-        if (state.actor && state.frameSignal)
-            state.actor.disconnect(state.frameSignal);
+        this._disconnectFrameActor(state);
         state.actor = actor;
         state.frameSignal = actor.connect('first-frame', () => this._frameReady(window));
+        // The actor can be disposed before 'unmanaged'; forget it so we never
+        // disconnect from a dead GObject (which corrupts refcounts in mutter).
+        state.frameDestroySignal = actor.connect('destroy', () => {
+            state.actor = null;
+            state.frameSignal = 0;
+            state.frameDestroySignal = 0;
+        });
         if (!state.timeoutId) {
             state.timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, FIRST_FRAME_GRACE_MS, () => {
                 state.timeoutId = 0;
@@ -93,7 +99,7 @@ export class WindowTracker {
 
     _stopEffectWatch(state) {
         for (const id of state.effectIds)
-            state.effectActor.disconnect(id);
+            state.effectActor?.disconnect(id);
         state.effectActor = null;
         state.effectIds = [];
     }
@@ -107,13 +113,22 @@ export class WindowTracker {
         this._onChanged();
     }
 
-    _stopFrameWatch(state) {
-        if (state.actor && state.frameSignal)
-            state.actor.disconnect(state.frameSignal);
-        if (state.timeoutId)
-            GLib.Source.remove(state.timeoutId);
+    _disconnectFrameActor(state) {
+        if (state.actor) {
+            if (state.frameSignal)
+                state.actor.disconnect(state.frameSignal);
+            if (state.frameDestroySignal)
+                state.actor.disconnect(state.frameDestroySignal);
+        }
         state.actor = null;
         state.frameSignal = 0;
+        state.frameDestroySignal = 0;
+    }
+
+    _stopFrameWatch(state) {
+        this._disconnectFrameActor(state);
+        if (state.timeoutId)
+            GLib.Source.remove(state.timeoutId);
         state.timeoutId = 0;
     }
 
