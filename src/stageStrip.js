@@ -87,6 +87,9 @@ export class StageStrip {
                 }
             }
         };
+        // Shell may destroy chrome before disable() (e.g. session teardown).
+        // Stop reacting to signals so callbacks never touch a disposed actor.
+        this.actor.connect('destroy', () => this.destroy(true));
         this._connect(this._stSettings, 'notify::enable-animations', finishAnimations);
         if (supportsReducedMotion(this._stSettings))
             this._connect(this._stSettings, 'notify::reduced-motion', finishAnimations);
@@ -295,20 +298,25 @@ export class StageStrip {
         this.actor.visible = visible;
     }
 
-    destroy() {
+    destroy(actorDestroyed = false) {
         if (this._destroyed)
             return;
         this._destroyed = true;
-        for (const [object, id] of this._signals)
+        for (const [object, id] of this._signals) {
+            if (actorDestroyed && object === this.actor)
+                continue;
             object.disconnect(id);
+        }
         this._signals = [];
         for (const card of this._cards.values())
             card.destroy();
         this._cards.clear();
         this._pendingAdded.clear();
-        Main.layoutManager.removeChrome(this.actor);
-        // ctrlAltTabManager removes its group on the actor's destroy signal.
-        this.actor.destroy();
+        if (!actorDestroyed) {
+            Main.layoutManager.removeChrome(this.actor);
+            // ctrlAltTabManager removes its group on the actor's destroy signal.
+            this.actor.destroy();
+        }
         this.actor = null;
         this._list = null;
         this._settings = null;
