@@ -257,6 +257,7 @@ export class StageController {
         if (!this._model.activate(id))
             return;
         this._lastFocus = record.window;
+        this._strip.releaseKeyFocus();
         Main.activateWindow(record.window);
         this._applyVisibility();
         this._queueRefresh();

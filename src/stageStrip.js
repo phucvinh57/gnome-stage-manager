@@ -277,6 +277,14 @@ export class StageStrip {
         this._syncVisibility();
     }
 
+    // A clicked St.Button keeps Shell key focus; while it does, Mutter routes
+    // keystrokes to the strip instead of the activated window.
+    releaseKeyFocus() {
+        const focus = global.stage.get_key_focus();
+        if (!this._destroyed && focus && this.actor.contains(focus))
+            global.stage.set_key_focus(null);
+    }
+
     setVisible(visible) {
         if (this._destroyed)
             return;
